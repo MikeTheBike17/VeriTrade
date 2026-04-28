@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - Buyer Portal</title>
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="javascript/app.js" defer></script>
 </head>
 <body class="portal-page">
@@ -20,7 +21,7 @@
                 <li><a href="user.html">Admin</a></li>
                 <li><a href="seller.html">Seller</a></li>
                 <li><a href="buyer.html" class="active">Buyer</a></li>
-                <li><a href="index.html">Exit</a></li>
+                <li><a href="index.html" data-signout-link>Sign out</a></li>
             </ul>
         </div>
     </nav>
@@ -33,9 +34,88 @@
         </div>
     </section>
 
-    <section>
-        <div>
-            <h2>Things for buyers</h2>
+    <section class="dashboard-details">
+        <div class="portal-container">
+            <div class="dashboard-grid">
+                <article class="detail-card portal-form-card">
+                    <span class="card-kicker">Buyer verification</span>
+                    <h3>Run a seller trust check</h3>
+                    <p class="form-note">Enter the seller details shared in chat, on the marketplace, or during payment. VeriTrade will compare them against the saved seller identity where possible.</p>
+                    <form id="buyer-check-form" class="portal-form">
+                        <div class="portal-form-grid">
+                            <div class="form-group">
+                                <label for="buyer-seller-username">Seller Username</label>
+                                <input type="text" id="buyer-seller-username" placeholder="Optional VeriTrade username">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-seller-email">Seller Email</label>
+                                <input type="email" id="buyer-seller-email" placeholder="Enter the seller email">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-seller-phone">Seller Phone Number</label>
+                                <input type="text" id="buyer-seller-phone" placeholder="Enter the seller phone number">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-social-handle">Social Handle or Profile URL</label>
+                                <input type="text" id="buyer-social-handle" placeholder="Instagram, TikTok, Facebook, or similar">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-business-name">Business Name</label>
+                                <input type="text" id="buyer-business-name" placeholder="Enter the business or shop name">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-bank-holder">Bank Account Holder Name</label>
+                                <input type="text" id="buyer-bank-holder" placeholder="Optional bank account holder name">
+                            </div>
+                            <div class="form-group portal-form-grid-wide">
+                                <label for="buyer-marketplace-link">Marketplace Profile Link</label>
+                                <input type="text" id="buyer-marketplace-link" placeholder="Paste the seller marketplace profile link">
+                            </div>
+                        </div>
+
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="buyer-otp-confirmed">
+                            I received and confirmed the seller OTP signal
+                        </label>
+
+                        <button type="submit" class="submit-btn">Calculate Trust Score</button>
+                        <p class="status-banner" id="buyer-check-status"></p>
+                    </form>
+                </article>
+
+                <article class="detail-card result-card" id="buyer-result-card">
+                    <span class="card-kicker">Latest result</span>
+                    <h3 id="buyer-result-heading">Nothing yet</h3>
+                    <p id="buyer-result-message">Run a verification check to see a trust score, risk category, and matched seller signals.</p>
+                    <div class="result-score-row">
+                        <div>
+                            <span class="result-label">Trust score</span>
+                            <strong class="result-score" id="buyer-result-score">Nothing yet</strong>
+                        </div>
+                        <div>
+                            <span class="result-label">Risk category</span>
+                            <strong class="result-pill neutral-pill" id="buyer-result-risk">Nothing yet</strong>
+                        </div>
+                    </div>
+                    <ul class="detail-list result-meta">
+                        <li><span>Registered seller match</span><strong id="buyer-result-registered">Nothing yet</strong></li>
+                        <li><span>Matched details rate</span><strong id="buyer-result-match-rate">Nothing yet</strong></li>
+                        <li><span>OTP signal</span><strong id="buyer-result-otp">Nothing yet</strong></li>
+                    </ul>
+                </article>
+
+                <article class="detail-card">
+                    <span class="card-kicker">Signals used</span>
+                    <h3>How the buyer score is judged</h3>
+                    <ul class="workspace-list">
+                        <li>Matched VeriTrade username, email, phone, and marketplace details.</li>
+                        <li>Consistency between business identity and seller profile fields.</li>
+                        <li>OTP confirmation as an additional ownership signal.</li>
+                        <li>Whether the seller appears as a registered VeriTrade user.</li>
+                        <li>Saved record history for later review in your account workspace.</li>
+                    </ul>
+                </article>
+            </div>
         </div>
     </section>
 

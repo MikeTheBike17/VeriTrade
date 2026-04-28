@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - User Workspace</title>
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="javascript/app.js" defer></script>
 </head>
 <body class="portal-page">
@@ -19,7 +20,7 @@
                 <li><a href="user.html" class="active">Admin</a></li>
                 <li><a href="seller.html">Seller</a></li>
                 <li><a href="buyer.html">Buyer</a></li>
-                <li><a href="index.html">Exit</a></li>
+                <li><a href="index.html" data-signout-link>Sign out</a></li>
             </ul>
         </div>
     </nav>
@@ -42,22 +43,22 @@
 
             <div class="stats-grid">
                 <article class="stat-card">
-                    <span class="stat-value">12</span>
+                    <span class="stat-value" id="stat-trust-checks">Nothing yet</span>
                     <h3>Trust checks run</h3>
                     <p>Buyer-side validation requests completed from this account.</p>
                 </article>
                 <article class="stat-card">
-                    <span class="stat-value">4</span>
+                    <span class="stat-value" id="stat-sellers-monitored">Nothing yet</span>
                     <h3>Sellers monitored</h3>
                     <p>Profiles you have checked recently and may revisit before future payments.</p>
                 </article>
                 <article class="stat-card">
-                    <span class="stat-value">92%</span>
+                    <span class="stat-value" id="stat-profile-completion">Nothing yet</span>
                     <h3>Profile completion</h3>
                     <p>How complete your own account setup and linked verification data currently are.</p>
                 </article>
                 <article class="stat-card">
-                    <span class="stat-value">18</span>
+                    <span class="stat-value" id="stat-history-records">Nothing yet</span>
                     <h3>History records</h3>
                     <p>Saved feedback entries, verification events, and reviewable transaction moments.</p>
                 </article>
@@ -72,11 +73,12 @@
                     <span class="card-kicker">User details</span>
                     <h3>Account profile</h3>
                     <ul class="detail-list">
-                        <li><span>Registered name</span><strong>Jordan Ndlovu</strong></li>
-                        <li><span>Account email</span><strong>jordan@example.com</strong></li>
-                        <li><span>Workspace access</span><strong>Buyer and Seller</strong></li>
-                        <li><span>OTP alerts</span><strong>Enabled</strong></li>
-                        <li><span>Linked marketplaces</span><strong>3 profiles</strong></li>
+                        <li><span>Registered name</span><strong id="profile-full-name">Nothing yet</strong></li>
+                        <li><span>Username</span><strong id="profile-username">Nothing yet</strong></li>
+                        <li><span>Account email</span><strong id="profile-email">Nothing yet</strong></li>
+                        <li><span>Workspace access</span><strong id="profile-workspace">Nothing yet</strong></li>
+                        <li><span>OTP alerts</span><strong id="profile-otp-alerts">Nothing yet</strong></li>
+                        <li><span>Linked marketplaces</span><strong id="profile-linked-marketplaces">Nothing yet</strong></li>
                     </ul>
                 </article>
 
@@ -87,30 +89,30 @@
                         <div class="metric-item">
                             <div class="metric-row">
                                 <span>Profile completeness</span>
-                                <strong>92%</strong>
+                                <strong id="metric-profile-completion-value">Nothing yet</strong>
                             </div>
-                            <div class="metric-bar"><span class="metric-fill" style="width: 92%"></span></div>
+                            <div class="metric-bar"><span class="metric-fill" id="metric-profile-completion-fill" style="width: 0%"></span></div>
                         </div>
                         <div class="metric-item">
                             <div class="metric-row">
                                 <span>OTP confirmation success</span>
-                                <strong>87%</strong>
+                                <strong id="metric-otp-success-value">Nothing yet</strong>
                             </div>
-                            <div class="metric-bar"><span class="metric-fill" style="width: 87%"></span></div>
+                            <div class="metric-bar"><span class="metric-fill" id="metric-otp-success-fill" style="width: 0%"></span></div>
                         </div>
                         <div class="metric-item">
                             <div class="metric-row">
                                 <span>Matched seller detail rate</span>
-                                <strong>78%</strong>
+                                <strong id="metric-match-rate-value">Nothing yet</strong>
                             </div>
-                            <div class="metric-bar"><span class="metric-fill" style="width: 78%"></span></div>
+                            <div class="metric-bar"><span class="metric-fill" id="metric-match-rate-fill" style="width: 0%"></span></div>
                         </div>
                         <div class="metric-item">
                             <div class="metric-row">
                                 <span>Positive feedback trend</span>
-                                <strong>81%</strong>
+                                <strong id="metric-feedback-value">Nothing yet</strong>
                             </div>
-                            <div class="metric-bar"><span class="metric-fill" style="width: 81%"></span></div>
+                            <div class="metric-bar"><span class="metric-fill" id="metric-feedback-fill" style="width: 0%"></span></div>
                         </div>
                     </div>
                 </article>
@@ -118,21 +120,10 @@
                 <article class="detail-card">
                     <span class="card-kicker">History records</span>
                     <h3>Recent activity</h3>
-                    <div class="history-list">
-                        <article class="history-item">
-                            <p class="history-date">28 Apr 2026</p>
-                            <h4>Seller OTP confirmed</h4>
-                            <p>A seller verification request matched the submitted phone number and marketplace profile.</p>
-                        </article>
-                        <article class="history-item">
-                            <p class="history-date">26 Apr 2026</p>
-                            <h4>Buyer feedback saved</h4>
-                            <p>A completed trade review was added to the seller record for future buyer searches.</p>
-                        </article>
-                        <article class="history-item">
-                            <p class="history-date">23 Apr 2026</p>
-                            <h4>Trust score recalculated</h4>
-                            <p>A seller record moved from medium risk to low risk after new verification details were matched.</p>
+                    <div class="history-list" id="history-list">
+                        <article class="history-item empty-state">
+                            <h4>Nothing yet</h4>
+                            <p>Your account history will appear here after you start using VeriTrade.</p>
                         </article>
                     </div>
                 </article>

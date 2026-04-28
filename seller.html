@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - Seller Portal</title>
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="javascript/app.js" defer></script>
 </head>
 <body class="portal-page">
@@ -20,7 +21,7 @@
                 <li><a href="user.html">Admin</a></li>
                 <li><a href="seller.html" class="active">Seller</a></li>
                 <li><a href="buyer.html">Buyer</a></li>
-                <li><a href="index.html">Exit</a></li>
+                <li><a href="index.html" data-signout-link>Sign out</a></li>
             </ul>
         </div>
     </nav>
@@ -33,9 +34,89 @@
         </div>
     </section>
 
-    <section>
-        <div>
-            <h2>Things for sellers</h2>
+    <section class="dashboard-details">
+        <div class="portal-container">
+            <div class="dashboard-grid">
+                <article class="detail-card portal-form-card">
+                    <span class="card-kicker">Seller profile</span>
+                    <h3>Save the seller details buyers can later verify</h3>
+                    <p class="form-note">Your signed-up account details stay linked to this profile. Add the seller identity details that buyers may later compare before paying.</p>
+                    <form id="seller-profile-form" class="portal-form">
+                        <div class="portal-form-grid">
+                            <div class="form-group">
+                                <label for="seller-full-name">Registered Name</label>
+                                <input type="text" id="seller-full-name" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-username">Username</label>
+                                <input type="text" id="seller-username" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-email">Account Email</label>
+                                <input type="email" id="seller-email" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-phone">Seller Phone Number</label>
+                                <input type="text" id="seller-phone" placeholder="Enter the phone buyers use during trades">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-business-name">Business Name</label>
+                                <input type="text" id="seller-business-name" placeholder="Enter your business or shop name">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-social-handle">Social Handle or Profile URL</label>
+                                <input type="text" id="seller-social-handle" placeholder="TikTok, Instagram, Facebook, or similar">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-bank-holder">Bank Account Holder Name</label>
+                                <input type="text" id="seller-bank-holder" placeholder="Optional matching detail for buyers">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-marketplace-link">Primary Marketplace Profile Link</label>
+                                <input type="text" id="seller-marketplace-link" placeholder="Paste your main marketplace profile URL">
+                            </div>
+                            <div class="form-group portal-form-grid-wide">
+                                <label for="seller-marketplaces">Linked Marketplaces</label>
+                                <textarea id="seller-marketplaces" rows="4" placeholder="Enter marketplace names or profile links, separated by commas"></textarea>
+                            </div>
+                        </div>
+
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="seller-otp-alerts">
+                            Enable OTP alerts for seller verification requests
+                        </label>
+
+                        <button type="submit" class="submit-btn">Save Seller Profile</button>
+                        <p class="status-banner" id="seller-save-status"></p>
+                    </form>
+                </article>
+
+                <article class="detail-card">
+                    <span class="card-kicker">Visible trust signals</span>
+                    <h3>What buyers can match against</h3>
+                    <ul class="workspace-list">
+                        <li>Registered username and account-linked email.</li>
+                        <li>Seller phone number used during a live trade.</li>
+                        <li>Business name, social handle, and marketplace links.</li>
+                        <li>Optional bank account holder name when a payment step is involved.</li>
+                        <li>OTP alert readiness for faster verification.</li>
+                    </ul>
+                </article>
+
+                <article class="detail-card">
+                    <span class="card-kicker">Profile snapshot</span>
+                    <h3>Your current seller visibility</h3>
+                    <ul class="detail-list">
+                        <li><span>Registered name</span><strong id="seller-summary-name">Nothing yet</strong></li>
+                        <li><span>Phone number</span><strong id="seller-summary-phone">Nothing yet</strong></li>
+                        <li><span>Business name</span><strong id="seller-summary-business">Nothing yet</strong></li>
+                        <li><span>Social handle</span><strong id="seller-summary-social">Nothing yet</strong></li>
+                        <li><span>Marketplace profile</span><strong id="seller-summary-marketplace-link">Nothing yet</strong></li>
+                        <li><span>Linked marketplaces</span><strong id="seller-summary-marketplaces">Nothing yet</strong></li>
+                        <li><span>OTP alerts</span><strong id="seller-summary-otp">Nothing yet</strong></li>
+                    </ul>
+                </article>
+            </div>
         </div>
     </section>
 
