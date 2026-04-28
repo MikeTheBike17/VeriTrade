@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeriTrade - Secure Trading Platform</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="javascript/app.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Logo and Description Section -->
+        <div class="content-section">
+            <div class="logo">
+                <img src="assets/logo.webp" alt="VeriTrade Logo" id="logo-img">
+                <h1>VeriTrade</h1>
+            </div>
+            <div class="description">
+                <p>Welcome to VeriTrade - Your trusted platform for secure and seamless C2C trading. 
+                   Experience real time analytics and advanced tools to enhance your C2C trading experience.</p>
+            </div>
+        </div>
+
+        <!-- Authentication Section -->
+        <div class="auth-section">
+            <!-- Toggle Buttons -->
+            <div class="toggle-container">
+                <button class="toggle-btn active" id="login-toggle">Log In</button>
+                <button class="toggle-btn" id="signup-toggle">Create Account</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form active">
+                <h2>Welcome Back</h2>
+                <div class="form-group">
+                    <label for="login-user">Username</label>
+                    <input type="text" id="login-user" name="username" placeholder="Enter your username" required>
+                    <span class="error-message" id="login-user-error"></span>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" name="password" placeholder="Enter your password" required>
+                    <span class="error-message" id="login-password-error"></span>
+                </div>
+                <div class="remember-forgot">
+                    <label class="checkbox">
+                        <input type="checkbox" name="remember">
+                        Remember me
+                    </label>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+                <button type="submit" class="submit-btn">Log In</button>
+                <p class="form-footer">
+                    Don't have an account? <a href="#signup-form" id="switch-to-signup">Create one here</a>
+                </p>
+            </form>
+
+            <!-- Signup Form -->
+            <form id="signup-form" class="auth-form">
+                <h2>Create New Account</h2>
+                <div class="form-group">
+                    <label for="signup-name">Full Name</label>
+                    <input type="text" id="signup-name" name="name" placeholder="Enter your full name" required>
+                    <span class="error-message" id="signup-name-error"></span>
+                </div>
+                <div class="form-group">
+                    <label for="signup-email">Email Address</label>
+                    <input type="email" id="signup-email" name="email" placeholder="Enter your email" required>
+                    <span class="error-message" id="signup-email-error"></span>
+                </div>
+                <div class="form-group">
+                    <label for="signup-username">Username</label>
+                    <input type="text" id="signup-username" name="username" placeholder="Create your username" required>
+                    <span class="error-message" id="signup-username-error"></span>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" name="password" placeholder="Create a password" required>
+                    <span class="error-message" id="signup-password-error"></span>
+                </div>
+                <div class="form-group">
+                    <label for="signup-confirm-password">Confirm Password</label>
+                    <input type="password" id="signup-confirm-password" name="confirm-password" placeholder="Confirm your password" required>
+                    <span class="error-message" id="signup-confirm-password-error"></span>
+                </div>
+                <label class="checkbox full-width">
+                    <input type="checkbox" name="terms" required>
+                    I agree to the Terms of Service and Privacy Policy
+                </label>
+                <span class="error-message" id="signup-terms-error"></span>
+                <button type="submit" class="submit-btn">Create Account</button>
+                <p class="form-footer">
+                    Already have an account? <a href="#login-form" id="switch-to-login">Log in here</a>
+                </p>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
