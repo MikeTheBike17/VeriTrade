@@ -1,7 +1,7 @@
 const SUPABASE_URL = "https://ppbeiefwfqwmtatfgsve.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_lb1Eiw4hXEfTMDYh3nMp0w_WolruYMh";
 const DEFAULT_WORKSPACE_ACCESS = "Buyer and Seller";
-const EMPTY_LABEL = "empty";
+const EMPTY_LABEL = "none";
 
 const hasSupabaseConfig = Boolean(
     window.supabase &&
