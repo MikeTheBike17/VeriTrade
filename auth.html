@@ -7,7 +7,7 @@
     <title>VeriTrade - Secure Trading Platform</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="javascript/app.js" defer></script>
+    <script src="javascript/app.js?v=20260428-2" defer></script>
 </head>
 <body>
     <div class="container">
@@ -32,7 +32,7 @@
             </div>
 
             <!-- Login Form -->
-            <form id="login-form" class="auth-form active" autocomplete="on">
+            <form id="login-form" class="auth-form active" autocomplete="on" method="post">
                 <h2>Welcome Back</h2>
                 <div class="form-group">
                     <label for="login-user">Username or Email</label>
@@ -54,7 +54,7 @@
             </form>
 
             <!-- Signup Form -->
-            <form id="signup-form" class="auth-form" autocomplete="on">
+            <form id="signup-form" class="auth-form" autocomplete="on" method="post">
                 <h2>Create New Account</h2>
                 <div class="form-group">
                     <label for="signup-name">Full Name</label>
