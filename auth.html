@@ -32,16 +32,16 @@
             </div>
 
             <!-- Login Form -->
-            <form id="login-form" class="auth-form active">
+            <form id="login-form" class="auth-form active" autocomplete="on">
                 <h2>Welcome Back</h2>
                 <div class="form-group">
                     <label for="login-user">Username or Email</label>
-                    <input type="text" id="login-user" name="username" placeholder="Enter your username or email" required>
+                    <input type="text" id="login-user" name="username" placeholder="Enter your username or email" autocomplete="username" required>
                     <span class="error-message" id="login-user-error"></span>
                 </div>
                 <div class="form-group">
                     <label for="login-password">Password</label>
-                    <input type="password" id="login-password" name="password" placeholder="Enter your password" required>
+                    <input type="password" id="login-password" name="password" placeholder="Enter your password" autocomplete="current-password" required>
                     <span class="error-message" id="login-password-error"></span>
                 </div>
                 <div class="forgot-password-row">
@@ -54,31 +54,31 @@
             </form>
 
             <!-- Signup Form -->
-            <form id="signup-form" class="auth-form">
+            <form id="signup-form" class="auth-form" autocomplete="on">
                 <h2>Create New Account</h2>
                 <div class="form-group">
                     <label for="signup-name">Full Name</label>
-                    <input type="text" id="signup-name" name="name" placeholder="Enter your full name" required>
+                    <input type="text" id="signup-name" name="name" placeholder="Enter your full name" autocomplete="name" required>
                     <span class="error-message" id="signup-name-error"></span>
                 </div>
                 <div class="form-group">
                     <label for="signup-email">Email Address</label>
-                    <input type="email" id="signup-email" name="email" placeholder="Enter your email" required>
+                    <input type="email" id="signup-email" name="email" placeholder="Enter your email" autocomplete="email" required>
                     <span class="error-message" id="signup-email-error"></span>
                 </div>
                 <div class="form-group">
                     <label for="signup-username">Username</label>
-                    <input type="text" id="signup-username" name="username" placeholder="Create your username" required>
+                    <input type="text" id="signup-username" name="username" placeholder="Create your username" autocomplete="username" required>
                     <span class="error-message" id="signup-username-error"></span>
                 </div>
                 <div class="form-group">
                     <label for="signup-password">Password</label>
-                    <input type="password" id="signup-password" name="password" placeholder="Create a password" required>
+                    <input type="password" id="signup-password" name="password" placeholder="Create a password" autocomplete="new-password" required>
                     <span class="error-message" id="signup-password-error"></span>
                 </div>
                 <div class="form-group">
                     <label for="signup-confirm-password">Confirm Password</label>
-                    <input type="password" id="signup-confirm-password" name="confirm-password" placeholder="Confirm your password" required>
+                    <input type="password" id="signup-confirm-password" name="confirm-password" placeholder="Confirm your password" autocomplete="new-password" required>
                     <span class="error-message" id="signup-confirm-password-error"></span>
                 </div>
                 <button type="submit" class="submit-btn">Create Account</button>
