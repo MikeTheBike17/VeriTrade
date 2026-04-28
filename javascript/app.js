@@ -6,6 +6,7 @@ const SELLER_STORAGE_BUCKET = "seller-verification-records";
 const BUYER_STORAGE_BUCKET = "buyer-verification-records";
 const USER_REDIRECT_PAGE = "user.html";
 const USER_SLUG_PARAM = "slug";
+const LOGIN_ALIAS_STORAGE_KEY = "veritrade_login_aliases";
 
 const hasSupabaseConfig = Boolean(
     window.supabase &&
@@ -113,6 +114,50 @@ function normalizeText(value) {
 
 function normalizeUrl(value) {
     return String(value || "").trim().toLowerCase();
+}
+
+function readLoginAliasMap() {
+    try {
+        const rawValue = window.localStorage.getItem(LOGIN_ALIAS_STORAGE_KEY);
+        if (!rawValue) {
+            return {};
+        }
+
+        const parsedValue = JSON.parse(rawValue);
+        return parsedValue && typeof parsedValue === "object" ? parsedValue : {};
+    } catch (error) {
+        return {};
+    }
+}
+
+function writeLoginAliasMap(loginAliasMap) {
+    try {
+        window.localStorage.setItem(LOGIN_ALIAS_STORAGE_KEY, JSON.stringify(loginAliasMap));
+    } catch (error) {
+        // Ignore storage quota or browser privacy mode failures.
+    }
+}
+
+function cacheLoginAlias(username, email) {
+    const normalizedUsername = normalizeText(username);
+    const normalizedEmail = normalizeText(email);
+
+    if (!normalizedUsername || !normalizedEmail) {
+        return;
+    }
+
+    const loginAliasMap = readLoginAliasMap();
+    loginAliasMap[normalizedUsername] = normalizedEmail;
+    writeLoginAliasMap(loginAliasMap);
+}
+
+function getCachedLoginEmail(loginValue) {
+    if (!loginValue || loginValue.includes("@")) {
+        return null;
+    }
+
+    const loginAliasMap = readLoginAliasMap();
+    return loginAliasMap[normalizeText(loginValue)] || null;
 }
 
 function getUserSlug(profileOrUser) {
@@ -672,13 +717,35 @@ function getDisplayProfile(profile, user) {
     };
 }
 
+function getLoginErrorMessage(error) {
+    const normalizedMessage = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+
+    if (
+        normalizedMessage.includes("email not confirmed") ||
+        normalizedMessage.includes("email_not_confirmed") ||
+        normalizedMessage.includes("confirm your email")
+    ) {
+        return "Please confirm your email address before logging in.";
+    }
+
+    if (
+        normalizedMessage.includes("invalid login credentials") ||
+        normalizedMessage.includes("invalid_credentials") ||
+        normalizedMessage.includes("invalid credentials")
+    ) {
+        return "Incorrect username/email or password.";
+    }
+
+    return error?.message || "We could not log you in right now.";
+}
+
 async function resolveLoginEmail(loginValue) {
     if (loginValue.includes("@")) {
         return loginValue.toLowerCase();
     }
 
     if (!supabase) {
-        return null;
+        return getCachedLoginEmail(loginValue);
     }
 
     const { data, error } = await supabase.rpc("get_login_email", {
@@ -686,10 +753,10 @@ async function resolveLoginEmail(loginValue) {
     });
 
     if (error) {
-        return null;
+        return getCachedLoginEmail(loginValue);
     }
 
-    return data || null;
+    return data || getCachedLoginEmail(loginValue);
 }
 
 async function isUsernameTaken(username) {
@@ -722,6 +789,8 @@ async function syncProfileFromUser(user) {
         auth_email: user.email ? user.email.toLowerCase() : "",
         workspace_access: DEFAULT_WORKSPACE_ACCESS
     };
+
+    cacheLoginAlias(profilePayload.username, profilePayload.auth_email);
 
     const { data, error } = await supabase
         .from("profiles")
@@ -1425,7 +1494,10 @@ async function initAuthPage() {
         const resolvedEmail = await resolveLoginEmail(loginValue);
 
         if (!resolvedEmail) {
-            authUi.showErrorMessage("login-password-error", "Incorrect username/email or password.");
+            const loginMessage = loginValue.includes("@")
+                ? "Incorrect email or password."
+                : "We could not match that username yet. Try your email address, or confirm your account email first.";
+            authUi.showErrorMessage("login-password-error", loginMessage);
             return;
         }
 
@@ -1435,7 +1507,7 @@ async function initAuthPage() {
         });
 
         if (error) {
-            authUi.showErrorMessage("login-password-error", "Incorrect username/email or password.");
+            authUi.showErrorMessage("login-password-error", getLoginErrorMessage(error));
             return;
         }
 
@@ -1491,6 +1563,8 @@ async function initAuthPage() {
             return;
         }
 
+        cacheLoginAlias(username, email);
+
         if (data.session && data.user) {
             await syncProfileFromUser(data.user);
             showAlert("Account created successfully! Opening your workspace...");
@@ -1501,7 +1575,7 @@ async function initAuthPage() {
             return;
         }
 
-        showAlert("Account created. Confirm your email, then log in with your username and password.");
+        showAlert("Account created. Confirm your email, then log in with your username or email and password.");
         authUi.signupForm.reset();
         authUi.showLoginForm();
     });
