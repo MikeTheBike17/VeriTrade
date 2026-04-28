@@ -665,7 +665,7 @@ async function syncProfileFromUser(user) {
         id: user.id,
         username: username.toLowerCase(),
         full_name: fullName,
-        auth_email: user.email,
+        auth_email: user.email ? user.email.toLowerCase() : "",
         workspace_access: DEFAULT_WORKSPACE_ACCESS
     };
 
@@ -1131,20 +1131,33 @@ function initAuthUi() {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     }
 
-    function showLoginForm() {
-        loginForm.classList.add("active");
-        signupForm.classList.remove("active");
-        loginToggle.classList.add("active");
-        signupToggle.classList.remove("active");
+    function updateAuthMode(mode, shouldUpdateUrl = true) {
+        const showingLogin = mode === "login";
+
+        loginForm.classList.toggle("active", showingLogin);
+        signupForm.classList.toggle("active", !showingLogin);
+        loginForm.hidden = !showingLogin;
+        signupForm.hidden = showingLogin;
+        loginToggle.classList.toggle("active", showingLogin);
+        signupToggle.classList.toggle("active", !showingLogin);
+        loginToggle.setAttribute("aria-pressed", String(showingLogin));
+        signupToggle.setAttribute("aria-pressed", String(!showingLogin));
+
+        if (shouldUpdateUrl) {
+            const url = new URL(window.location.href);
+            url.searchParams.set("mode", showingLogin ? "login" : "signup");
+            window.history.replaceState({}, "", url);
+        }
+
         clearFormErrors();
     }
 
-    function showSignupForm() {
-        signupForm.classList.add("active");
-        loginForm.classList.remove("active");
-        signupToggle.classList.add("active");
-        loginToggle.classList.remove("active");
-        clearFormErrors();
+    function showLoginForm(shouldUpdateUrl = true) {
+        updateAuthMode("login", shouldUpdateUrl);
+    }
+
+    function showSignupForm(shouldUpdateUrl = true) {
+        updateAuthMode("signup", shouldUpdateUrl);
     }
 
     function validateLoginForm() {
@@ -1182,7 +1195,6 @@ function initAuthUi() {
         const username = document.getElementById("signup-username");
         const password = document.getElementById("signup-password");
         const confirmPassword = document.getElementById("signup-confirm-password");
-        const termsCheckbox = document.querySelector('input[name="terms"]');
 
         if (!name.value.trim()) {
             showErrorMessage("signup-name-error", "Full name is required");
@@ -1245,16 +1257,18 @@ function initAuthUi() {
             isValid = false;
         }
 
-        if (!termsCheckbox.checked) {
-            showErrorMessage("signup-terms-error", "You must agree to the Terms of Service");
-            isValid = false;
-        }
-
         return isValid;
     }
 
-    loginToggle.addEventListener("click", showLoginForm);
-    signupToggle.addEventListener("click", showSignupForm);
+    loginToggle.addEventListener("click", (event) => {
+        event.preventDefault();
+        showLoginForm();
+    });
+
+    signupToggle.addEventListener("click", (event) => {
+        event.preventDefault();
+        showSignupForm();
+    });
 
     switchToSignup?.addEventListener("click", (event) => {
         event.preventDefault();
@@ -1268,9 +1282,9 @@ function initAuthUi() {
 
     const authMode = new URLSearchParams(window.location.search).get("mode");
     if (authMode === "signup") {
-        showSignupForm();
+        showSignupForm(false);
     } else {
-        showLoginForm();
+        showLoginForm(false);
     }
 
     const signupEmailInput = document.getElementById("signup-email");
@@ -1301,7 +1315,8 @@ function initAuthUi() {
         validateLoginForm,
         validateSignupForm,
         showErrorMessage,
-        showLoginForm
+        showLoginForm,
+        showSignupForm
     };
 }
 
@@ -1324,9 +1339,21 @@ async function initAuthPage() {
         return;
     }
 
-    const existingSession = await getCurrentSession();
-    if (existingSession) {
-        window.location.href = "user.html";
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+
+    let existingSession = null;
+    try {
+        existingSession = await getCurrentSession();
+    } catch (error) {
+        existingSession = null;
+    }
+
+    if (existingSession?.user) {
+        await syncProfileFromUser(existingSession.user);
+    }
+
+    if (existingSession && !requestedMode) {
+        window.location.href = USER_REDIRECT_PAGE;
         return;
     }
 
@@ -1363,7 +1390,7 @@ async function initAuthPage() {
         showAlert("Login successful! Redirecting to your workspace...");
         setTimeout(() => {
             authUi.loginForm.reset();
-            window.location.href = "user.html";
+            window.location.href = USER_REDIRECT_PAGE;
         }, 1200);
     });
 
@@ -1413,7 +1440,7 @@ async function initAuthPage() {
             showAlert("Account created successfully! Opening your workspace...");
             setTimeout(() => {
                 authUi.signupForm.reset();
-                window.location.href = "user.html";
+                window.location.href = USER_REDIRECT_PAGE;
             }, 1200);
             return;
         }
