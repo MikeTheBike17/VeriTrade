@@ -5,6 +5,7 @@ const EMPTY_LABEL = "none";
 const SELLER_STORAGE_BUCKET = "seller-verification-records";
 const BUYER_STORAGE_BUCKET = "buyer-verification-records";
 const USER_REDIRECT_PAGE = "user.html";
+const USER_SLUG_PARAM = "slug";
 
 const hasSupabaseConfig = Boolean(
     window.supabase &&
@@ -112,6 +113,51 @@ function normalizeText(value) {
 
 function normalizeUrl(value) {
     return String(value || "").trim().toLowerCase();
+}
+
+function getUserSlug(profileOrUser) {
+    const rawUsername =
+        profileOrUser?.username ||
+        profileOrUser?.user_metadata?.username ||
+        profileOrUser?.email?.split("@")[0] ||
+        "";
+
+    return String(rawUsername)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
+function getUserPageUrl(profileOrUser) {
+    const slug = getUserSlug(profileOrUser);
+
+    if (!slug) {
+        return USER_REDIRECT_PAGE;
+    }
+
+    return `${USER_REDIRECT_PAGE}?${USER_SLUG_PARAM}=${encodeURIComponent(slug)}`;
+}
+
+function syncCurrentUserPageSlug(profileOrUser) {
+    const currentPath = window.location.pathname.split("/").pop();
+
+    if (currentPath !== USER_REDIRECT_PAGE) {
+        return;
+    }
+
+    const slug = getUserSlug(profileOrUser);
+    if (!slug) {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.get(USER_SLUG_PARAM) === slug) {
+        return;
+    }
+
+    url.searchParams.set(USER_SLUG_PARAM, slug);
+    window.history.replaceState({}, "", url);
 }
 
 function parseMarketplaceList(value) {
@@ -224,7 +270,15 @@ function getRiskMessage({ riskCategory, isRegisteredUser, otpConfirmed, matchedD
 }
 
 function populateAccountNav(profile) {
-    document.querySelectorAll('.nav-links a[href="user.html"]').forEach((link) => {
+    const userPageUrl = getUserPageUrl(profile);
+
+    document
+        .querySelectorAll(`a[href="${USER_REDIRECT_PAGE}"], a[href^="${USER_REDIRECT_PAGE}?${USER_SLUG_PARAM}="]`)
+        .forEach((link) => {
+            link.setAttribute("href", userPageUrl);
+        });
+
+    document.querySelectorAll('.nav-links a[href^="user.html"]').forEach((link) => {
         link.textContent = profile?.username || "Account";
     });
 }
@@ -1353,7 +1407,9 @@ async function initAuthPage() {
     }
 
     if (existingSession && !requestedMode) {
-        window.location.href = USER_REDIRECT_PAGE;
+        const redirectProfile =
+            (await fetchCurrentProfile(existingSession.user.id)) || getBaseProfileFromUser(existingSession.user);
+        window.location.href = getUserPageUrl(redirectProfile);
         return;
     }
 
@@ -1390,7 +1446,7 @@ async function initAuthPage() {
         showAlert("Login successful! Redirecting to your workspace...");
         setTimeout(() => {
             authUi.loginForm.reset();
-            window.location.href = USER_REDIRECT_PAGE;
+            window.location.href = getUserPageUrl(data.user);
         }, 1200);
     });
 
@@ -1440,7 +1496,7 @@ async function initAuthPage() {
             showAlert("Account created successfully! Opening your workspace...");
             setTimeout(() => {
                 authUi.signupForm.reset();
-                window.location.href = USER_REDIRECT_PAGE;
+                window.location.href = getUserPageUrl(data.user);
             }, 1200);
             return;
         }
@@ -1474,6 +1530,7 @@ async function ensurePortalSession() {
     const profile = syncedProfile || (await fetchCurrentProfile(session.user.id)) || getBaseProfileFromUser(session.user);
 
     populateAccountNav(profile);
+    syncCurrentUserPageSlug(profile);
 
     return {
         session,
@@ -1772,7 +1829,7 @@ async function initSellerPage(session, initialProfile) {
 
         setStatusMessage("seller-save-status", "Seller profile submitted successfully.", "success");
         window.setTimeout(() => {
-            window.location.href = USER_REDIRECT_PAGE;
+            window.location.href = getUserPageUrl(savedPublicProfile);
         }, 1200);
     });
 }
@@ -2078,7 +2135,7 @@ async function initBuyerPage(session) {
             );
 
             window.setTimeout(() => {
-                window.location.href = USER_REDIRECT_PAGE;
+                window.location.href = getUserPageUrl(publicProfilePayload);
             }, 1800);
         });
     }
