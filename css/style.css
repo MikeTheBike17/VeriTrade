@@ -123,6 +123,44 @@ body.portal-page {
     box-shadow: 0 10px 25px rgba(27, 127, 92, 0.3);
 }
 
+.nav-container-inside {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 15px 30px;
+    display: flex;
+    align-items: center;
+}
+
+.nav-links-inside {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    list-style: none;
+    margin-left: auto;
+    padding: 0;
+}
+
+.nav-links-inside a {
+    text-decoration: none;
+    color: #222;
+    font-weight: 600;
+}
+
+.nav-links-inside a.active {
+    color: #158052;
+}
+
+.exit-btn {
+    margin-left: 40px;
+    background: linear-gradient(135deg, #1B7F5C 30%, #001F3F 100%);
+    border: none;
+    border-radius: 20px;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 10px 24px;
+}
+
 .hero {
     background: linear-gradient(135deg, #1B7F5C 0%, #001F3F 100%);
     color: white;
