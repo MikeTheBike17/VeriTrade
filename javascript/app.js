@@ -15,7 +15,7 @@ const hasSupabaseConfig = Boolean(
     !SUPABASE_URL.includes("YOUR_SUPABASE_URL")
 );
 
-const supabase = hasSupabaseConfig
+const supabaseClient = hasSupabaseConfig
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
           auth: {
               persistSession: true,
@@ -744,11 +744,11 @@ async function resolveLoginEmail(loginValue) {
         return loginValue.toLowerCase();
     }
 
-    if (!supabase) {
+    if (!supabaseClient) {
         return getCachedLoginEmail(loginValue);
     }
 
-    const { data, error } = await supabase.rpc("get_login_email", {
+    const { data, error } = await supabaseClient.rpc("get_login_email", {
         p_login: loginValue.toLowerCase()
     });
 
@@ -760,11 +760,11 @@ async function resolveLoginEmail(loginValue) {
 }
 
 async function isUsernameTaken(username) {
-    if (!supabase) {
+    if (!supabaseClient) {
         return false;
     }
 
-    const { data, error } = await supabase.rpc("get_login_email", {
+    const { data, error } = await supabaseClient.rpc("get_login_email", {
         p_login: username.toLowerCase()
     });
 
@@ -776,7 +776,7 @@ async function isUsernameTaken(username) {
 }
 
 async function syncProfileFromUser(user) {
-    if (!supabase || !user) {
+    if (!supabaseClient || !user) {
         return null;
     }
 
@@ -792,7 +792,7 @@ async function syncProfileFromUser(user) {
 
     cacheLoginAlias(profilePayload.username, profilePayload.auth_email);
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from("profiles")
         .upsert(profilePayload, {
             onConflict: "id"
@@ -804,7 +804,7 @@ async function syncProfileFromUser(user) {
         return null;
     }
 
-    await supabase.from("user_analytics").upsert(
+    await supabaseClient.from("user_analytics").upsert(
         {
             user_id: user.id
         },
@@ -817,38 +817,38 @@ async function syncProfileFromUser(user) {
 }
 
 async function fetchCurrentProfile(userId) {
-    if (!supabase || !userId) {
+    if (!supabaseClient || !userId) {
         return null;
     }
 
-    const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+    const { data } = await supabaseClient.from("profiles").select("*").eq("id", userId).maybeSingle();
     return data || null;
 }
 
 async function fetchSellerProfile(userId) {
-    if (!supabase || !userId) {
+    if (!supabaseClient || !userId) {
         return null;
     }
 
-    const { data } = await supabase.from("seller_profiles").select("*").eq("user_id", userId).maybeSingle();
+    const { data } = await supabaseClient.from("seller_profiles").select("*").eq("user_id", userId).maybeSingle();
     return data || null;
 }
 
 async function fetchBuyerProfile(userId) {
-    if (!supabase || !userId) {
+    if (!supabaseClient || !userId) {
         return null;
     }
 
-    const { data } = await supabase.from("buyer_profiles").select("*").eq("user_id", userId).maybeSingle();
+    const { data } = await supabaseClient.from("buyer_profiles").select("*").eq("user_id", userId).maybeSingle();
     return data || null;
 }
 
 async function fetchPurchases(userId) {
-    if (!supabase || !userId) {
+    if (!supabaseClient || !userId) {
         return [];
     }
 
-    const { data } = await supabase
+    const { data } = await supabaseClient
         .from("purchases")
         .select("*")
         .eq("buyer_user_id", userId)
@@ -858,13 +858,13 @@ async function fetchPurchases(userId) {
 }
 
 async function uploadSellerVerificationFile(userId, category, file) {
-    if (!supabase || !userId || !file) {
+    if (!supabaseClient || !userId || !file) {
         return null;
     }
 
     const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
     const filePath = `${userId}/${category}/${Date.now()}-${safeFileName}`;
-    const { error } = await supabase.storage
+    const { error } = await supabaseClient.storage
         .from(SELLER_STORAGE_BUCKET)
         .upload(filePath, file, { upsert: true });
 
@@ -882,13 +882,13 @@ async function uploadSellerVerificationFile(userId, category, file) {
 }
 
 async function uploadBuyerVerificationFile(userId, category, file) {
-    if (!supabase || !userId || !file) {
+    if (!supabaseClient || !userId || !file) {
         return null;
     }
 
     const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
     const filePath = `${userId}/${category}/${Date.now()}-${safeFileName}`;
-    const { error } = await supabase.storage
+    const { error } = await supabaseClient.storage
         .from(BUYER_STORAGE_BUCKET)
         .upload(filePath, file, { upsert: true });
 
@@ -906,13 +906,13 @@ async function uploadBuyerVerificationFile(userId, category, file) {
 }
 
 async function getCurrentSession() {
-    if (!supabase) {
+    if (!supabaseClient) {
         return null;
     }
 
     const {
         data: { session }
-    } = await supabase.auth.getSession();
+    } = await supabaseClient.auth.getSession();
 
     return session;
 }
@@ -925,11 +925,11 @@ async function createHistoryEntry({
     sentiment = null,
     relatedCheckId = null
 }) {
-    if (!supabase || !userId || !title || !description) {
+    if (!supabaseClient || !userId || !title || !description) {
         return;
     }
 
-    await supabase.from("user_history").insert({
+    await supabaseClient.from("user_history").insert({
         user_id: userId,
         event_type: eventType,
         title,
@@ -940,11 +940,11 @@ async function createHistoryEntry({
 }
 
 async function upsertAnalyticsSnapshot(userId, snapshot) {
-    if (!supabase || !userId || !snapshot) {
+    if (!supabaseClient || !userId || !snapshot) {
         return;
     }
 
-    await supabase.from("user_analytics").upsert(
+    await supabaseClient.from("user_analytics").upsert(
         {
             user_id: userId,
             trust_checks_run: snapshot.trustChecksRun,
@@ -964,8 +964,8 @@ async function upsertAnalyticsSnapshot(userId, snapshot) {
 async function collectUserSnapshot(userId, profileOverride = null) {
     const [profile, checksResponse, historyResponse] = await Promise.all([
         profileOverride ? Promise.resolve(profileOverride) : fetchCurrentProfile(userId),
-        supabase.from("verification_checks").select("*").eq("user_id", userId),
-        supabase
+        supabaseClient.from("verification_checks").select("*").eq("user_id", userId),
+        supabaseClient
             .from("user_history")
             .select("*")
             .eq("user_id", userId)
@@ -1073,12 +1073,12 @@ function getBuyerVerificationStatus(payload, buyerTrustScore) {
 }
 
 async function findRegisteredSellerByContact(sellerEmail, sellerPhone) {
-    if (!supabase) {
+    if (!supabaseClient) {
         return null;
     }
 
     if (sellerEmail) {
-        const { data } = await supabase
+        const { data } = await supabaseClient
             .from("seller_profiles")
             .select("user_id, full_name, email, phone, is_registered_seller, seller_trust_score, purchase_confidence_score")
             .eq("email", sellerEmail)
@@ -1091,7 +1091,7 @@ async function findRegisteredSellerByContact(sellerEmail, sellerPhone) {
     }
 
     if (sellerPhone) {
-        const { data } = await supabase
+        const { data } = await supabaseClient
             .from("seller_profiles")
             .select("user_id, full_name, email, phone, is_registered_seller, seller_trust_score, purchase_confidence_score")
             .eq("phone", sellerPhone)
@@ -1107,11 +1107,11 @@ async function findRegisteredSellerByContact(sellerEmail, sellerPhone) {
 }
 
 async function hasSellerFraudWarning(sellerEmail, sellerPhone) {
-    if (!supabase) {
+    if (!supabaseClient) {
         return false;
     }
 
-    const { data } = await supabase
+    const { data } = await supabaseClient
         .from("purchases")
         .select("seller_email, seller_phone")
         .eq("fraud_reported", true);
@@ -1178,7 +1178,7 @@ function bindPurchaseActions(userId) {
             return;
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from("purchases")
             .update(updates)
             .eq("id", purchaseId)
@@ -1212,8 +1212,8 @@ function bindSignOutLinks() {
         link.addEventListener("click", async (event) => {
             event.preventDefault();
 
-            if (supabase) {
-                await supabase.auth.signOut();
+            if (supabaseClient) {
+                await supabaseClient.auth.signOut();
             }
 
             window.location.href = "index.html";
@@ -1449,7 +1449,7 @@ async function initAuthPage() {
         return;
     }
 
-    if (!supabase) {
+    if (!supabaseClient) {
         authUi.loginForm.addEventListener("submit", (event) => {
             event.preventDefault();
             showAlert("Add your Supabase project URL in javascript/app.js before using authentication.");
@@ -1501,7 +1501,7 @@ async function initAuthPage() {
             return;
         }
 
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
             email: resolvedEmail,
             password
         });
@@ -1539,7 +1539,7 @@ async function initAuthPage() {
             return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await supabaseClient.auth.signUp({
             email,
             password,
             options: {
@@ -1582,7 +1582,7 @@ async function initAuthPage() {
 }
 
 async function ensurePortalSession() {
-    if (!supabase) {
+    if (!supabaseClient) {
         return null;
     }
 
@@ -1594,7 +1594,7 @@ async function ensurePortalSession() {
 
     bindSignOutLinks();
 
-    supabase.auth.onAuthStateChange((event, nextSession) => {
+    supabaseClient.auth.onAuthStateChange((event, nextSession) => {
         if (event === "SIGNED_OUT" || !nextSession) {
             window.location.href = "auth.html?mode=login";
         }
@@ -1841,7 +1841,7 @@ async function initSellerPage(session, initialProfile) {
             linked_marketplaces: sellingPlatforms
         };
 
-        const { data: publicProfileData, error: publicProfileError } = await supabase
+        const { data: publicProfileData, error: publicProfileError } = await supabaseClient
             .from("profiles")
             .upsert(updatedPublicProfile, { onConflict: "id" })
             .select("*")
@@ -1874,7 +1874,7 @@ async function initSellerPage(session, initialProfile) {
             completed_sales_count: existingSellerProfile?.completed_sales_count || 0
         };
 
-        const { data: sellerProfileData, error: sellerProfileError } = await supabase
+        const { data: sellerProfileData, error: sellerProfileError } = await supabaseClient
             .from("seller_profiles")
             .upsert(sellerProfilePayload, { onConflict: "user_id" })
             .select("*")
@@ -1909,11 +1909,11 @@ async function initSellerPage(session, initialProfile) {
 }
 
 async function findSellerMatches(criteria) {
-    if (!supabase) {
+    if (!supabaseClient) {
         return [];
     }
 
-    const { data, error } = await supabase.rpc("search_seller_matches", {
+    const { data, error } = await supabaseClient.rpc("search_seller_matches", {
         p_username: criteria.seller_username_input || null,
         p_email: criteria.seller_email || null,
         p_phone: criteria.seller_phone || null,
@@ -2169,7 +2169,7 @@ async function initBuyerPage(session) {
                 phone_number: buyerProfilePayload.phone
             };
 
-            const { error: publicProfileError } = await supabase
+            const { error: publicProfileError } = await supabaseClient
                 .from("profiles")
                 .upsert(publicProfilePayload, { onConflict: "id" });
 
@@ -2178,7 +2178,7 @@ async function initBuyerPage(session) {
                 return;
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from("buyer_profiles")
                 .upsert(buyerProfilePayload, { onConflict: "user_id" })
                 .select("*")
@@ -2248,7 +2248,7 @@ async function initBuyerPage(session) {
                 fraud_reason: null
             };
 
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from("purchases")
                 .insert(purchasePayload)
                 .select("*")
@@ -2311,3 +2311,4 @@ document.addEventListener("DOMContentLoaded", () => {
         initPortalPage();
     }
 });
+
