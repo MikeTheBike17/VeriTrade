@@ -1,6 +1,7 @@
 const SUPABASE_URL = "https://ppbeiefwfqwmtatfgsve.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_lb1Eiw4hXEfTMDYh3nMp0w_WolruYMh";
 const DEFAULT_WORKSPACE_ACCESS = "Buyer and Seller";
+const EMPTY_LABEL = "empty";
 
 const hasSupabaseConfig = Boolean(
     window.supabase &&
@@ -21,7 +22,7 @@ const supabase = hasSupabaseConfig
 
 function formatDate(dateString) {
     if (!dateString) {
-        return "Nothing yet";
+        return EMPTY_LABEL;
     }
 
     return new Date(dateString).toLocaleDateString("en-GB", {
@@ -57,7 +58,7 @@ function setStatValue(id, value) {
         return;
     }
 
-    const isEmpty = value === "Nothing yet";
+    const isEmpty = value === EMPTY_LABEL;
     element.textContent = value;
     element.classList.toggle("is-empty", isEmpty);
 }
@@ -79,7 +80,7 @@ function setMetric(prefix, value) {
         valueElement.textContent = `${safeValue}%`;
         fillElement.style.width = `${safeValue}%`;
     } else {
-        valueElement.textContent = "Nothing yet";
+        valueElement.textContent = EMPTY_LABEL;
         fillElement.style.width = "0%";
     }
 }
@@ -234,7 +235,7 @@ function renderHistoryList(historyList) {
     if (!historyList.length) {
         historyContainer.innerHTML = `
             <article class="history-item empty-state">
-                <h4>Nothing yet</h4>
+                <h4>${EMPTY_LABEL}</h4>
                 <p>Your account history will appear here after you start using VeriTrade.</p>
             </article>
         `;
@@ -247,7 +248,7 @@ function renderHistoryList(historyList) {
                 <article class="history-item">
                     <p class="history-date">${escapeHtml(formatDate(item.created_at))}</p>
                     <h4>${escapeHtml(item.title || "History entry")}</h4>
-                    <p>${escapeHtml(item.description || "Nothing yet")}</p>
+                    <p>${escapeHtml(item.description || EMPTY_LABEL)}</p>
                 </article>
             `
         )
@@ -261,18 +262,18 @@ function renderSellerSummary(profile) {
 
     const linkedMarketplaces = Array.isArray(profile.linked_marketplaces) ? profile.linked_marketplaces : [];
 
-    setTextContent("seller-summary-name", profile.full_name || "Nothing yet");
-    setTextContent("seller-summary-phone", profile.phone_number || "Nothing yet");
-    setTextContent("seller-summary-business", profile.business_name || "Nothing yet");
-    setTextContent("seller-summary-social", profile.social_handle_url || "Nothing yet");
-    setTextContent("seller-summary-marketplace-link", profile.marketplace_profile_link || "Nothing yet");
+    setTextContent("seller-summary-name", profile.full_name || EMPTY_LABEL);
+    setTextContent("seller-summary-phone", profile.phone_number || EMPTY_LABEL);
+    setTextContent("seller-summary-business", profile.business_name || EMPTY_LABEL);
+    setTextContent("seller-summary-social", profile.social_handle_url || EMPTY_LABEL);
+    setTextContent("seller-summary-marketplace-link", profile.marketplace_profile_link || EMPTY_LABEL);
     setTextContent(
         "seller-summary-marketplaces",
-        linkedMarketplaces.length ? linkedMarketplaces.join(", ") : "Nothing yet"
+        linkedMarketplaces.length ? linkedMarketplaces.join(", ") : EMPTY_LABEL
     );
     setTextContent(
         "seller-summary-otp",
-        profile.otp_alerts === true ? "Enabled" : profile.otp_alerts === false ? "Disabled" : "Nothing yet"
+        profile.otp_alerts === true ? "Enabled" : profile.otp_alerts === false ? "Disabled" : EMPTY_LABEL
     );
 }
 
@@ -288,16 +289,16 @@ function renderBuyerResult(check) {
     riskElement.className = "result-pill neutral-pill";
 
     if (!check) {
-        setTextContent("buyer-result-heading", "Nothing yet");
+        setTextContent("buyer-result-heading", EMPTY_LABEL);
         setTextContent(
             "buyer-result-message",
             "Run a verification check to see a trust score, risk category, and matched seller signals."
         );
-        setTextContent("buyer-result-score", "Nothing yet");
-        setTextContent("buyer-result-risk", "Nothing yet");
-        setTextContent("buyer-result-registered", "Nothing yet");
-        setTextContent("buyer-result-match-rate", "Nothing yet");
-        setTextContent("buyer-result-otp", "Nothing yet");
+        setTextContent("buyer-result-score", EMPTY_LABEL);
+        setTextContent("buyer-result-risk", EMPTY_LABEL);
+        setTextContent("buyer-result-registered", EMPTY_LABEL);
+        setTextContent("buyer-result-match-rate", EMPTY_LABEL);
+        setTextContent("buyer-result-otp", EMPTY_LABEL);
         return;
     }
 
@@ -324,7 +325,7 @@ function renderBuyerResult(check) {
     );
     setTextContent(
         "buyer-result-score",
-        Number.isFinite(trustScore) ? `${trustScore}/100` : "Nothing yet"
+        Number.isFinite(trustScore) ? `${trustScore}/100` : EMPTY_LABEL
     );
     setTextContent("buyer-result-risk", `${riskCategory} risk`);
     setTextContent(
@@ -337,9 +338,18 @@ function renderBuyerResult(check) {
     );
     setTextContent(
         "buyer-result-match-rate",
-        Number.isFinite(matchedDetailRate) ? `${matchedDetailRate}%` : "Nothing yet"
+        Number.isFinite(matchedDetailRate) ? `${matchedDetailRate}%` : EMPTY_LABEL
     );
     setTextContent("buyer-result-otp", check.otp_confirmed ? "Confirmed" : "Not confirmed");
+}
+
+function getDisplayProfile(profile, user) {
+    return {
+        ...profile,
+        full_name: profile?.full_name || user.user_metadata?.full_name || EMPTY_LABEL,
+        username: profile?.username || user.user_metadata?.username || user.email?.split("@")[0] || EMPTY_LABEL,
+        auth_email: profile?.auth_email || user.email || EMPTY_LABEL
+    };
 }
 
 async function resolveLoginEmail(loginValue) {
@@ -499,9 +509,9 @@ async function collectUserSnapshot(userId, profileOverride = null) {
     const resolvedProfile =
         profile ||
         ({
-            full_name: "Nothing yet",
-            username: "Nothing yet",
-            auth_email: "Nothing yet",
+            full_name: EMPTY_LABEL,
+            username: EMPTY_LABEL,
+            auth_email: EMPTY_LABEL,
             workspace_access: DEFAULT_WORKSPACE_ACCESS,
             linked_marketplaces: []
         });
@@ -526,9 +536,9 @@ async function collectUserSnapshot(userId, profileOverride = null) {
 
 function getBaseProfileFromUser(user) {
     return {
-        full_name: user.user_metadata?.full_name || "Nothing yet",
-        username: user.user_metadata?.username || user.email?.split("@")[0] || "Nothing yet",
-        auth_email: user.email || "Nothing yet",
+        full_name: user.user_metadata?.full_name || EMPTY_LABEL,
+        username: user.user_metadata?.username || user.email?.split("@")[0] || EMPTY_LABEL,
+        auth_email: user.email || EMPTY_LABEL,
         workspace_access: DEFAULT_WORKSPACE_ACCESS,
         linked_marketplaces: []
     };
@@ -906,30 +916,30 @@ async function ensurePortalSession() {
 
 async function initUserPage(session, initialProfile) {
     const { profile, historyList, snapshot } = await collectUserSnapshot(session.user.id, initialProfile);
+    const displayProfile = getDisplayProfile(profile, session.user);
 
     await upsertAnalyticsSnapshot(session.user.id, snapshot);
 
-    const linkedMarketplaces = Array.isArray(profile.linked_marketplaces) ? profile.linked_marketplaces : [];
+    const linkedMarketplaces = Array.isArray(displayProfile.linked_marketplaces) ? displayProfile.linked_marketplaces : [];
 
-    setStatValue("stat-trust-checks", snapshot.trustChecksRun ? String(snapshot.trustChecksRun) : "Nothing yet");
+    setStatValue("stat-trust-checks", snapshot.trustChecksRun ? String(snapshot.trustChecksRun) : EMPTY_LABEL);
     setStatValue(
         "stat-sellers-monitored",
-        snapshot.sellersMonitored ? String(snapshot.sellersMonitored) : "Nothing yet"
+        snapshot.sellersMonitored ? String(snapshot.sellersMonitored) : EMPTY_LABEL
     );
     setStatValue("stat-profile-completion", `${snapshot.profileCompletion}%`);
-    setStatValue("stat-history-records", snapshot.historyRecords ? String(snapshot.historyRecords) : "Nothing yet");
+    setStatValue("stat-history-records", snapshot.historyRecords ? String(snapshot.historyRecords) : EMPTY_LABEL);
 
-    setTextContent("profile-full-name", profile.full_name || "Nothing yet");
-    setTextContent("profile-username", profile.username || "Nothing yet");
-    setTextContent("profile-email", profile.auth_email || "Nothing yet");
-    setTextContent("profile-workspace", profile.workspace_access || DEFAULT_WORKSPACE_ACCESS);
+    setTextContent("profile-full-name", displayProfile.full_name || EMPTY_LABEL);
+    setTextContent("profile-username", displayProfile.username || EMPTY_LABEL);
+    setTextContent("profile-email", displayProfile.auth_email || EMPTY_LABEL);
     setTextContent(
         "profile-otp-alerts",
-        profile.otp_alerts === true ? "Enabled" : profile.otp_alerts === false ? "Disabled" : "Nothing yet"
+        profile.otp_alerts === true ? "Enabled" : profile.otp_alerts === false ? "Disabled" : EMPTY_LABEL
     );
     setTextContent(
         "profile-linked-marketplaces",
-        linkedMarketplaces.length ? `${linkedMarketplaces.length} profile${linkedMarketplaces.length === 1 ? "" : "s"}` : "Nothing yet"
+        linkedMarketplaces.length ? `${linkedMarketplaces.length} profile${linkedMarketplaces.length === 1 ? "" : "s"}` : EMPTY_LABEL
     );
 
     setMetric("metric-profile-completion", snapshot.profileCompletion);
