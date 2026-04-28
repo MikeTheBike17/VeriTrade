@@ -2,6 +2,9 @@ const SUPABASE_URL = "https://ppbeiefwfqwmtatfgsve.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_lb1Eiw4hXEfTMDYh3nMp0w_WolruYMh";
 const DEFAULT_WORKSPACE_ACCESS = "Buyer and Seller";
 const EMPTY_LABEL = "none";
+const SELLER_STORAGE_BUCKET = "seller-verification-records";
+const BUYER_STORAGE_BUCKET = "buyer-verification-records";
+const USER_REDIRECT_PAGE = "user.html";
 
 const hasSupabaseConfig = Boolean(
     window.supabase &&
@@ -255,92 +258,355 @@ function renderHistoryList(historyList) {
         .join("");
 }
 
-function renderSellerSummary(profile) {
-    if (!profile) {
+function getCheckedValues(name) {
+    return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map((input) => input.value);
+}
+
+function getSellerDocumentCount(sellerProfile) {
+    const documents = sellerProfile?.verification_documents;
+
+    if (!documents || typeof documents !== "object") {
+        return 0;
+    }
+
+    return Object.values(documents).filter(Boolean).length;
+}
+
+function getSellerPlatformLabel(sellerProfile) {
+    const platforms = Array.isArray(sellerProfile?.selling_platforms) ? sellerProfile.selling_platforms : [];
+    return platforms.length ? platforms.join(", ") : EMPTY_LABEL;
+}
+
+function getSellerRegistrationBadge(sellerProfile) {
+    return sellerProfile?.is_registered_seller ? "Registered Seller" : EMPTY_LABEL;
+}
+
+function getSellerTrustScoreLabel(sellerProfile) {
+    const trustScore = Number(sellerProfile?.seller_trust_score);
+    return Number.isFinite(trustScore) && trustScore > 0 ? `${trustScore}%` : EMPTY_LABEL;
+}
+
+function getPurchaseConfidenceLabel(sellerProfile) {
+    const confidenceScore = Number(sellerProfile?.purchase_confidence_score);
+    return Number.isFinite(confidenceScore) && confidenceScore > 0 ? `${confidenceScore}%` : EMPTY_LABEL;
+}
+
+function renderSellerStatusSummary(sellerProfile, fallbackUser) {
+    setTextContent(
+        "seller-status-name",
+        sellerProfile?.full_name || fallbackUser?.user_metadata?.full_name || EMPTY_LABEL
+    );
+    setTextContent("seller-status-registered", getSellerRegistrationBadge(sellerProfile));
+    setTextContent(
+        "seller-status-verification",
+        sellerProfile?.seller_verification_status || EMPTY_LABEL
+    );
+    setTextContent("seller-status-trust", getSellerTrustScoreLabel(sellerProfile));
+    setTextContent("seller-status-confidence", getPurchaseConfidenceLabel(sellerProfile));
+    setTextContent(
+        "seller-status-documents",
+        getSellerDocumentCount(sellerProfile) ? `${getSellerDocumentCount(sellerProfile)} submitted` : EMPTY_LABEL
+    );
+    setTextContent("seller-status-platforms", getSellerPlatformLabel(sellerProfile));
+}
+
+function ensureUserSellerAnalyticsCard() {
+    const dashboardGrid = document.querySelector(".dashboard-grid");
+
+    if (!dashboardGrid) {
+        return null;
+    }
+
+    let sellerCard = document.getElementById("seller-analytics-card");
+    if (sellerCard) {
+        return sellerCard;
+    }
+
+    sellerCard = document.createElement("article");
+    sellerCard.className = "detail-card";
+    sellerCard.id = "seller-analytics-card";
+    sellerCard.innerHTML = `
+        <span class="card-kicker">Seller analytics</span>
+        <h3>Seller confidence status</h3>
+        <ul class="detail-list">
+            <li><span>Registered seller</span><strong id="seller-analytics-registered">${EMPTY_LABEL}</strong></li>
+            <li><span>Verification status</span><strong id="seller-analytics-status">${EMPTY_LABEL}</strong></li>
+            <li><span>Seller trust score</span><strong id="seller-analytics-trust">${EMPTY_LABEL}</strong></li>
+            <li><span>Purchase confidence</span><strong id="seller-analytics-confidence">${EMPTY_LABEL}</strong></li>
+            <li><span>Listed products</span><strong id="seller-analytics-products">${EMPTY_LABEL}</strong></li>
+            <li><span>Completed sales</span><strong id="seller-analytics-sales">${EMPTY_LABEL}</strong></li>
+        </ul>
+    `;
+
+    dashboardGrid.appendChild(sellerCard);
+    return sellerCard;
+}
+
+function renderUserSellerAnalytics(sellerProfile) {
+    const sellerCard = ensureUserSellerAnalyticsCard();
+
+    if (!sellerCard) {
         return;
     }
 
-    const linkedMarketplaces = Array.isArray(profile.linked_marketplaces) ? profile.linked_marketplaces : [];
+    setTextContent("seller-analytics-registered", getSellerRegistrationBadge(sellerProfile));
+    setTextContent(
+        "seller-analytics-status",
+        sellerProfile?.seller_verification_status || EMPTY_LABEL
+    );
+    setTextContent("seller-analytics-trust", getSellerTrustScoreLabel(sellerProfile));
+    setTextContent("seller-analytics-confidence", getPurchaseConfidenceLabel(sellerProfile));
+    setTextContent(
+        "seller-analytics-products",
+        Number.isFinite(Number(sellerProfile?.listed_products_count))
+            ? String(Number(sellerProfile.listed_products_count))
+            : EMPTY_LABEL
+    );
+    setTextContent(
+        "seller-analytics-sales",
+        Number.isFinite(Number(sellerProfile?.completed_sales_count))
+            ? String(Number(sellerProfile.completed_sales_count))
+            : EMPTY_LABEL
+    );
+}
 
-    setTextContent("seller-summary-name", profile.full_name || EMPTY_LABEL);
-    setTextContent("seller-summary-phone", profile.phone_number || EMPTY_LABEL);
-    setTextContent("seller-summary-business", profile.business_name || EMPTY_LABEL);
-    setTextContent("seller-summary-social", profile.social_handle_url || EMPTY_LABEL);
-    setTextContent("seller-summary-marketplace-link", profile.marketplace_profile_link || EMPTY_LABEL);
+function ensureUserBuyerAnalyticsCard() {
+    const dashboardGrid = document.querySelector(".dashboard-grid");
+
+    if (!dashboardGrid) {
+        return null;
+    }
+
+    let buyerCard = document.getElementById("buyer-analytics-card");
+    if (buyerCard) {
+        return buyerCard;
+    }
+
+    buyerCard = document.createElement("article");
+    buyerCard.className = "detail-card";
+    buyerCard.id = "buyer-analytics-card";
+    buyerCard.innerHTML = `
+        <span class="card-kicker">Buyer analytics</span>
+        <h3>Buyer scoring and activity</h3>
+        <ul class="detail-list">
+            <li><span>Buyer trust score</span><strong id="buyer-analytics-score">${EMPTY_LABEL}</strong></li>
+            <li><span>Buyer verification status</span><strong id="buyer-analytics-status">${EMPTY_LABEL}</strong></li>
+            <li><span>Purchase requests sent</span><strong id="buyer-analytics-requests">${EMPTY_LABEL}</strong></li>
+            <li><span>Accepted purchases</span><strong id="buyer-analytics-accepted">${EMPTY_LABEL}</strong></li>
+            <li><span>Cancelled purchases</span><strong id="buyer-analytics-cancelled">${EMPTY_LABEL}</strong></li>
+            <li><span>Completed purchases</span><strong id="buyer-analytics-completed">${EMPTY_LABEL}</strong></li>
+        </ul>
+    `;
+
+    dashboardGrid.appendChild(buyerCard);
+    return buyerCard;
+}
+
+function ensureUserPurchaseAnalyticsCard() {
+    const dashboardGrid = document.querySelector(".dashboard-grid");
+
+    if (!dashboardGrid) {
+        return null;
+    }
+
+    let purchaseCard = document.getElementById("purchase-analytics-card");
+    if (purchaseCard) {
+        return purchaseCard;
+    }
+
+    purchaseCard = document.createElement("article");
+    purchaseCard.className = "detail-card";
+    purchaseCard.id = "purchase-analytics-card";
+    purchaseCard.innerHTML = `
+        <span class="card-kicker">Purchase analytics</span>
+        <h3>Purchase outcomes</h3>
+        <ul class="detail-list">
+            <li><span>Total purchases</span><strong id="purchase-analytics-total">${EMPTY_LABEL}</strong></li>
+            <li><span>Delivered purchases</span><strong id="purchase-analytics-delivered">${EMPTY_LABEL}</strong></li>
+            <li><span>Not delivered purchases</span><strong id="purchase-analytics-not-delivered">${EMPTY_LABEL}</strong></li>
+            <li><span>Fraud reports submitted</span><strong id="purchase-analytics-fraud">${EMPTY_LABEL}</strong></li>
+            <li><span>Registered seller purchases</span><strong id="purchase-analytics-registered">${EMPTY_LABEL}</strong></li>
+            <li><span>Unregistered seller purchases</span><strong id="purchase-analytics-unregistered">${EMPTY_LABEL}</strong></li>
+        </ul>
+    `;
+
+    dashboardGrid.appendChild(purchaseCard);
+    return purchaseCard;
+}
+
+function getBuyerBehaviourComplete(buyerProfile) {
+    if (!buyerProfile?.behaviour_flags || typeof buyerProfile.behaviour_flags !== "object") {
+        return false;
+    }
+
+    const values = Object.values(buyerProfile.behaviour_flags);
+    return values.length > 0 && values.every(Boolean);
+}
+
+function renderUserBuyerAnalytics(buyerProfile, purchases) {
+    ensureUserBuyerAnalyticsCard();
+    ensureUserPurchaseAnalyticsCard();
+
+    const totalPurchases = purchases.length;
+    const acceptedPurchases = purchases.filter((purchase) =>
+        ["paid", "delivered", "not_delivered", "fraud_reported"].includes(purchase.purchase_status)
+    ).length;
+    const cancelledPurchases = purchases.filter((purchase) => purchase.purchase_status === "cancelled").length;
+    const completedPurchases = purchases.filter((purchase) => purchase.purchase_status === "delivered").length;
+    const deliveredPurchases = completedPurchases;
+    const notDeliveredPurchases = purchases.filter((purchase) => purchase.purchase_status === "not_delivered").length;
+    const fraudReports = purchases.filter((purchase) => purchase.fraud_reported).length;
+    const registeredSellerPurchases = purchases.filter((purchase) => purchase.seller_type === "Registered Seller").length;
+    const unregisteredSellerPurchases = purchases.filter((purchase) => purchase.seller_type === "Unregistered Seller").length;
+    const trustScore = Number(buyerProfile?.buyer_trust_score);
+
+    setTextContent("buyer-analytics-score", Number.isFinite(trustScore) ? `${trustScore}%` : EMPTY_LABEL);
+    setTextContent("buyer-analytics-status", buyerProfile?.buyer_verification_status || EMPTY_LABEL);
+    setTextContent("buyer-analytics-requests", totalPurchases ? String(totalPurchases) : EMPTY_LABEL);
+    setTextContent("buyer-analytics-accepted", acceptedPurchases ? String(acceptedPurchases) : EMPTY_LABEL);
+    setTextContent("buyer-analytics-cancelled", cancelledPurchases ? String(cancelledPurchases) : EMPTY_LABEL);
+    setTextContent("buyer-analytics-completed", completedPurchases ? String(completedPurchases) : EMPTY_LABEL);
+
+    setTextContent("purchase-analytics-total", totalPurchases ? String(totalPurchases) : EMPTY_LABEL);
+    setTextContent("purchase-analytics-delivered", deliveredPurchases ? String(deliveredPurchases) : EMPTY_LABEL);
     setTextContent(
-        "seller-summary-marketplaces",
-        linkedMarketplaces.length ? linkedMarketplaces.join(", ") : EMPTY_LABEL
+        "purchase-analytics-not-delivered",
+        notDeliveredPurchases ? String(notDeliveredPurchases) : EMPTY_LABEL
+    );
+    setTextContent("purchase-analytics-fraud", fraudReports ? String(fraudReports) : EMPTY_LABEL);
+    setTextContent(
+        "purchase-analytics-registered",
+        registeredSellerPurchases ? String(registeredSellerPurchases) : EMPTY_LABEL
     );
     setTextContent(
-        "seller-summary-otp",
-        profile.otp_alerts === true ? "Enabled" : profile.otp_alerts === false ? "Disabled" : EMPTY_LABEL
+        "purchase-analytics-unregistered",
+        unregisteredSellerPurchases ? String(unregisteredSellerPurchases) : EMPTY_LABEL
     );
+}
+
+function renderPurchaseList(purchases) {
+    const purchaseList = document.getElementById("purchase-list");
+
+    if (!purchaseList) {
+        return;
+    }
+
+    if (!purchases.length) {
+        purchaseList.innerHTML = `
+            <article class="history-item empty-state">
+                <h4>${EMPTY_LABEL}</h4>
+                <p>Your purchases will appear here after you save them from the Buyer page.</p>
+            </article>
+        `;
+        return;
+    }
+
+    const fraudKeys = new Set(
+        purchases
+            .filter((purchase) => purchase.fraud_reported)
+            .flatMap((purchase) => [normalizeText(purchase.seller_email), normalizePhone(purchase.seller_phone)])
+            .filter(Boolean)
+    );
+
+    purchaseList.innerHTML = purchases
+        .map((purchase) => {
+            const warningTriggered =
+                !purchase.fraud_reported &&
+                (
+                    fraudKeys.has(normalizeText(purchase.seller_email)) ||
+                    fraudKeys.has(normalizePhone(purchase.seller_phone))
+                );
+
+            return `
+                <article class="history-item" data-purchase-id="${escapeHtml(purchase.id)}">
+                    <p class="history-date">${escapeHtml(formatDate(purchase.created_at))}</p>
+                    <h4>${escapeHtml(purchase.product_name || "Purchase")}</h4>
+                    <p>Seller type: ${escapeHtml(purchase.seller_type || EMPTY_LABEL)}</p>
+                    <p>Seller name: ${escapeHtml(purchase.seller_name || EMPTY_LABEL)}</p>
+                    <p>Seller email: ${escapeHtml(purchase.seller_email || EMPTY_LABEL)}</p>
+                    <p>Seller phone: ${escapeHtml(purchase.seller_phone || EMPTY_LABEL)}</p>
+                    <p>Current status: ${escapeHtml(purchase.purchase_status || EMPTY_LABEL)}</p>
+                    ${
+                        purchase.fraud_reported
+                            ? '<p><strong class="result-pill high-pill">Fraud Reported</strong></p>'
+                            : ""
+                    }
+                    ${
+                        warningTriggered
+                            ? '<p><strong class="result-pill medium-pill">Warning: This seller has been reported before.</strong></p>'
+                            : ""
+                    }
+                    <p>
+                        <button type="button" class="card-btn buyer-btn" data-purchase-action="delivered" data-purchase-id="${escapeHtml(purchase.id)}">Mark as Delivered</button>
+                        <button type="button" class="card-btn seller-btn" data-purchase-action="not-delivered" data-purchase-id="${escapeHtml(purchase.id)}">Mark as Not Delivered</button>
+                        <button type="button" class="card-btn seller-btn" data-purchase-action="fraud" data-purchase-id="${escapeHtml(purchase.id)}">Report as Fraud</button>
+                    </p>
+                </article>
+            `;
+        })
+        .join("");
 }
 
 function renderBuyerResult(check) {
     const resultCard = document.getElementById("buyer-result-card");
-    const riskElement = document.getElementById("buyer-result-risk");
+    const statusElement = document.getElementById("buyer-result-status");
 
-    if (!resultCard || !riskElement) {
+    if (!resultCard || !statusElement) {
         return;
     }
 
     resultCard.classList.remove("is-low", "is-medium", "is-high");
-    riskElement.className = "result-pill neutral-pill";
+    statusElement.className = "result-pill neutral-pill";
 
     if (!check) {
         setTextContent("buyer-result-heading", EMPTY_LABEL);
         setTextContent(
             "buyer-result-message",
-            "Run a verification check to see a trust score, risk category, and matched seller signals."
+            "Submit your buyer profile to calculate a trust score and store your verification status."
         );
         setTextContent("buyer-result-score", EMPTY_LABEL);
-        setTextContent("buyer-result-risk", EMPTY_LABEL);
-        setTextContent("buyer-result-registered", EMPTY_LABEL);
-        setTextContent("buyer-result-match-rate", EMPTY_LABEL);
-        setTextContent("buyer-result-otp", EMPTY_LABEL);
+        setTextContent("buyer-result-status", EMPTY_LABEL);
+        setTextContent("buyer-result-platforms", EMPTY_LABEL);
+        setTextContent("buyer-result-behaviour", EMPTY_LABEL);
+        setTextContent("buyer-result-documents", EMPTY_LABEL);
         return;
     }
 
-    const trustScore = Number(check.trust_score);
-    const matchedDetailRate = Number(check.matched_detail_rate);
-    const riskCategory = check.risk_category || getRiskCategory(trustScore || 0);
-    const pillClass = `${riskCategory.toLowerCase()}-pill`;
+    const trustScore = Number(check.buyer_trust_score);
+    const verificationStatus = check.buyer_verification_status || EMPTY_LABEL;
+    const platformCount = Array.isArray(check.buying_platforms) ? check.buying_platforms.length : 0;
+    const documentCount =
+        check.verification_documents && typeof check.verification_documents === "object"
+            ? Object.values(check.verification_documents).filter(Boolean).length
+            : 0;
+    const allBehavioursAccepted =
+        check.behaviour_flags &&
+        Object.values(check.behaviour_flags).length &&
+        Object.values(check.behaviour_flags).every(Boolean);
 
-    resultCard.classList.add(`is-${riskCategory.toLowerCase()}`);
-    riskElement.className = `result-pill ${pillClass}`;
+    if (trustScore >= 80) {
+        resultCard.classList.add("is-low");
+        statusElement.className = "result-pill low-pill";
+    } else if (trustScore >= 50) {
+        resultCard.classList.add("is-medium");
+        statusElement.className = "result-pill medium-pill";
+    } else {
+        resultCard.classList.add("is-high");
+        statusElement.className = "result-pill high-pill";
+    }
 
-    setTextContent(
-        "buyer-result-heading",
-        check.matched_registered_user ? "Registered seller match found" : "Verification completed"
-    );
+    setTextContent("buyer-result-heading", "Buyer profile submitted");
     setTextContent(
         "buyer-result-message",
-        getRiskMessage({
-            riskCategory,
-            isRegisteredUser: Boolean(check.matched_registered_user),
-            otpConfirmed: Boolean(check.otp_confirmed),
-            matchedDetailRate: Number.isFinite(matchedDetailRate) ? matchedDetailRate : null
-        })
+        Number.isFinite(trustScore)
+            ? `Your Buyer Trust Score is ${trustScore}%.`
+            : "Your buyer profile has been stored."
     );
-    setTextContent(
-        "buyer-result-score",
-        Number.isFinite(trustScore) ? `${trustScore}/100` : EMPTY_LABEL
-    );
-    setTextContent("buyer-result-risk", `${riskCategory} risk`);
-    setTextContent(
-        "buyer-result-registered",
-        check.matched_registered_user
-            ? check.matched_username
-                ? `Yes - ${check.matched_username}`
-                : "Yes"
-            : "No registered match"
-    );
-    setTextContent(
-        "buyer-result-match-rate",
-        Number.isFinite(matchedDetailRate) ? `${matchedDetailRate}%` : EMPTY_LABEL
-    );
-    setTextContent("buyer-result-otp", check.otp_confirmed ? "Confirmed" : "Not confirmed");
+    setTextContent("buyer-result-score", Number.isFinite(trustScore) ? `${trustScore}%` : EMPTY_LABEL);
+    setTextContent("buyer-result-status", verificationStatus);
+    setTextContent("buyer-result-platforms", platformCount ? `${platformCount} selected` : EMPTY_LABEL);
+    setTextContent("buyer-result-behaviour", allBehavioursAccepted ? "Completed" : "Partial");
+    setTextContent("buyer-result-documents", documentCount ? `${documentCount} uploaded` : EMPTY_LABEL);
 }
 
 function getDisplayProfile(profile, user) {
@@ -434,6 +700,86 @@ async function fetchCurrentProfile(userId) {
 
     const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
     return data || null;
+}
+
+async function fetchSellerProfile(userId) {
+    if (!supabase || !userId) {
+        return null;
+    }
+
+    const { data } = await supabase.from("seller_profiles").select("*").eq("user_id", userId).maybeSingle();
+    return data || null;
+}
+
+async function fetchBuyerProfile(userId) {
+    if (!supabase || !userId) {
+        return null;
+    }
+
+    const { data } = await supabase.from("buyer_profiles").select("*").eq("user_id", userId).maybeSingle();
+    return data || null;
+}
+
+async function fetchPurchases(userId) {
+    if (!supabase || !userId) {
+        return [];
+    }
+
+    const { data } = await supabase
+        .from("purchases")
+        .select("*")
+        .eq("buyer_user_id", userId)
+        .order("created_at", { ascending: false });
+
+    return Array.isArray(data) ? data : [];
+}
+
+async function uploadSellerVerificationFile(userId, category, file) {
+    if (!supabase || !userId || !file) {
+        return null;
+    }
+
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const filePath = `${userId}/${category}/${Date.now()}-${safeFileName}`;
+    const { error } = await supabase.storage
+        .from(SELLER_STORAGE_BUCKET)
+        .upload(filePath, file, { upsert: true });
+
+    if (error) {
+        throw error;
+    }
+
+    return {
+        path: filePath,
+        original_name: file.name,
+        mime_type: file.type || "application/octet-stream",
+        size: file.size,
+        uploaded_at: new Date().toISOString()
+    };
+}
+
+async function uploadBuyerVerificationFile(userId, category, file) {
+    if (!supabase || !userId || !file) {
+        return null;
+    }
+
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const filePath = `${userId}/${category}/${Date.now()}-${safeFileName}`;
+    const { error } = await supabase.storage
+        .from(BUYER_STORAGE_BUCKET)
+        .upload(filePath, file, { upsert: true });
+
+    if (error) {
+        throw error;
+    }
+
+    return {
+        path: filePath,
+        original_name: file.name,
+        mime_type: file.type || "application/octet-stream",
+        size: file.size,
+        uploaded_at: new Date().toISOString()
+    };
 }
 
 async function getCurrentSession() {
@@ -542,6 +888,200 @@ function getBaseProfileFromUser(user) {
         workspace_access: DEFAULT_WORKSPACE_ACCESS,
         linked_marketplaces: []
     };
+}
+
+function hasBuyerPlatformReference(platformLinks, contactReference, extraDetails) {
+    const linkValues =
+        platformLinks && typeof platformLinks === "object" ? Object.values(platformLinks).filter(Boolean) : [];
+
+    return linkValues.length > 0 || Boolean(contactReference) || Boolean(extraDetails);
+}
+
+function calculateBuyerTrustScore(payload) {
+    let score = 0;
+
+    if (payload.full_name) {
+        score += 10;
+    }
+
+    if (payload.email) {
+        score += 10;
+    }
+
+    if (payload.phone) {
+        score += 15;
+    }
+
+    if (payload.location) {
+        score += 10;
+    }
+
+    if (payload.student_number || payload.institution) {
+        score += 10;
+    }
+
+    if (payload.buying_platforms.length > 0) {
+        score += 10;
+    }
+
+    if (hasBuyerPlatformReference(payload.platform_links, payload.contact_reference, payload.extra_buyer_details)) {
+        score += 10;
+    }
+
+    if (getBuyerBehaviourComplete(payload)) {
+        score += 15;
+    }
+
+    if (Object.values(payload.verification_documents || {}).filter(Boolean).length > 0) {
+        score += 10;
+    }
+
+    return clampPercent(score);
+}
+
+function getBuyerVerificationStatus(payload, buyerTrustScore) {
+    const requiredFieldsComplete = [payload.full_name, payload.email, payload.phone, payload.location].every(Boolean);
+
+    if (requiredFieldsComplete && getBuyerBehaviourComplete(payload)) {
+        return buyerTrustScore >= 70 ? "Pending Verification" : "Profile Submitted";
+    }
+
+    return "Incomplete";
+}
+
+async function findRegisteredSellerByContact(sellerEmail, sellerPhone) {
+    if (!supabase) {
+        return null;
+    }
+
+    if (sellerEmail) {
+        const { data } = await supabase
+            .from("seller_profiles")
+            .select("user_id, full_name, email, phone, is_registered_seller, seller_trust_score, purchase_confidence_score")
+            .eq("email", sellerEmail)
+            .eq("is_registered_seller", true)
+            .maybeSingle();
+
+        if (data) {
+            return data;
+        }
+    }
+
+    if (sellerPhone) {
+        const { data } = await supabase
+            .from("seller_profiles")
+            .select("user_id, full_name, email, phone, is_registered_seller, seller_trust_score, purchase_confidence_score")
+            .eq("phone", sellerPhone)
+            .eq("is_registered_seller", true)
+            .maybeSingle();
+
+        if (data) {
+            return data;
+        }
+    }
+
+    return null;
+}
+
+async function hasSellerFraudWarning(sellerEmail, sellerPhone) {
+    if (!supabase) {
+        return false;
+    }
+
+    const { data } = await supabase
+        .from("purchases")
+        .select("seller_email, seller_phone")
+        .eq("fraud_reported", true);
+
+    const purchases = Array.isArray(data) ? data : [];
+    const normalizedEmail = normalizeText(sellerEmail);
+    const normalizedPhone = normalizePhone(sellerPhone);
+
+    return purchases.some(
+        (purchase) =>
+            (normalizedEmail && normalizeText(purchase.seller_email) === normalizedEmail) ||
+            (normalizedPhone && normalizePhone(purchase.seller_phone) === normalizedPhone)
+    );
+}
+
+function bindPurchaseActions(userId) {
+    const purchaseList = document.getElementById("purchase-list");
+
+    if (!purchaseList || purchaseList.dataset.bound === "true") {
+        return;
+    }
+
+    purchaseList.dataset.bound = "true";
+
+    purchaseList.addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-purchase-action]");
+
+        if (!button) {
+            return;
+        }
+
+        const purchaseId = button.getAttribute("data-purchase-id");
+        const action = button.getAttribute("data-purchase-action");
+
+        if (!purchaseId || !action) {
+            return;
+        }
+
+        let updates = {};
+
+        if (action === "delivered") {
+            updates = {
+                purchase_status: "delivered",
+                fraud_reported: false,
+                fraud_reason: null
+            };
+        } else if (action === "not-delivered") {
+            updates = {
+                purchase_status: "not_delivered"
+            };
+        } else if (action === "fraud") {
+            const fraudReason = window.prompt("Enter a short fraud reason:");
+
+            if (!fraudReason || !fraudReason.trim()) {
+                return;
+            }
+
+            updates = {
+                purchase_status: "fraud_reported",
+                fraud_reported: true,
+                fraud_reason: fraudReason.trim()
+            };
+        } else {
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from("purchases")
+            .update(updates)
+            .eq("id", purchaseId)
+            .eq("buyer_user_id", userId)
+            .select("*")
+            .maybeSingle();
+
+        if (error || !data) {
+            return;
+        }
+
+        await createHistoryEntry({
+            userId,
+            eventType: "verification",
+            title: "Purchase status updated",
+            description: `Purchase "${data.product_name}" was updated to ${data.purchase_status.replaceAll("_", " ")}.`
+        });
+
+        const [buyerProfile, purchases] = await Promise.all([
+            fetchBuyerProfile(userId),
+            fetchPurchases(userId)
+        ]);
+
+        renderPurchaseList(purchases);
+        renderUserBuyerAnalytics(buyerProfile, purchases);
+    });
 }
 
 function bindSignOutLinks() {
@@ -917,6 +1457,11 @@ async function ensurePortalSession() {
 async function initUserPage(session, initialProfile) {
     const { profile, historyList, snapshot } = await collectUserSnapshot(session.user.id, initialProfile);
     const displayProfile = getDisplayProfile(profile, session.user);
+    const [sellerProfile, buyerProfile, purchases] = await Promise.all([
+        fetchSellerProfile(session.user.id),
+        fetchBuyerProfile(session.user.id),
+        fetchPurchases(session.user.id)
+    ]);
 
     await upsertAnalyticsSnapshot(session.user.id, snapshot);
 
@@ -948,6 +1493,10 @@ async function initUserPage(session, initialProfile) {
     setMetric("metric-feedback", snapshot.positiveFeedbackTrend);
 
     renderHistoryList(historyList);
+    renderUserSellerAnalytics(sellerProfile);
+    renderUserBuyerAnalytics(buyerProfile, purchases);
+    renderPurchaseList(purchases);
+    bindPurchaseActions(session.user.id);
 }
 
 async function initSellerPage(session, initialProfile) {
@@ -957,66 +1506,247 @@ async function initSellerPage(session, initialProfile) {
     }
 
     const profile = initialProfile || getBaseProfileFromUser(session.user);
-    const linkedMarketplaces = Array.isArray(profile.linked_marketplaces) ? profile.linked_marketplaces : [];
+    const existingSellerProfile = await fetchSellerProfile(session.user.id);
+    const existingPlatformLinks =
+        existingSellerProfile?.platform_links && typeof existingSellerProfile.platform_links === "object"
+            ? existingSellerProfile.platform_links
+            : {};
 
-    document.getElementById("seller-full-name").value = profile.full_name || session.user.user_metadata?.full_name || "";
-    document.getElementById("seller-username").value = profile.username || session.user.user_metadata?.username || "";
-    document.getElementById("seller-email").value = profile.auth_email || session.user.email || "";
-    document.getElementById("seller-phone").value = profile.phone_number || "";
-    document.getElementById("seller-business-name").value = profile.business_name || "";
-    document.getElementById("seller-social-handle").value = profile.social_handle_url || "";
-    document.getElementById("seller-bank-holder").value = profile.bank_account_holder_name || "";
-    document.getElementById("seller-marketplace-link").value = profile.marketplace_profile_link || "";
-    document.getElementById("seller-marketplaces").value = linkedMarketplaces.join(", ");
-    document.getElementById("seller-otp-alerts").checked = profile.otp_alerts === true;
+    document.getElementById("seller-full-name").value =
+        existingSellerProfile?.full_name || profile.full_name || session.user.user_metadata?.full_name || "";
+    document.getElementById("seller-email").value =
+        existingSellerProfile?.email || profile.auth_email || session.user.email || "";
+    document.getElementById("seller-phone").value =
+        existingSellerProfile?.phone || profile.phone_number || "";
+    document.getElementById("seller-id-number").value =
+        existingSellerProfile?.id_number || "";
+    document.getElementById("seller-location").value =
+        existingSellerProfile?.location || "";
+    document.getElementById("seller-student-number").value =
+        existingSellerProfile?.student_number || "";
+    document.getElementById("seller-institution").value =
+        existingSellerProfile?.institution || "";
+    document.getElementById("seller-verification-notes").value =
+        existingSellerProfile?.verification_notes || "";
+    document.getElementById("seller-platform-facebook").value =
+        existingPlatformLinks.facebook_marketplace || "";
+    document.getElementById("seller-platform-whatsapp").value =
+        existingPlatformLinks.whatsapp || "";
+    document.getElementById("seller-platform-instagram").value =
+        existingPlatformLinks.instagram || "";
+    document.getElementById("seller-platform-gumtree").value =
+        existingPlatformLinks.gumtree || "";
+    document.getElementById("seller-platform-other-name").value =
+        existingPlatformLinks.other_name || "";
+    document.getElementById("seller-platform-other-link").value =
+        existingPlatformLinks.other || "";
 
-    renderSellerSummary(profile);
+    const selectedPlatforms = Array.isArray(existingSellerProfile?.selling_platforms)
+        ? existingSellerProfile.selling_platforms
+        : [];
+
+    document.querySelectorAll('input[name="seller-selling-platform"]').forEach((input) => {
+        input.checked = selectedPlatforms.includes(input.value);
+    });
+
+    document.getElementById("seller-agreement-accurate").checked =
+        existingSellerProfile?.agreement_flags?.accurate === true;
+    document.getElementById("seller-agreement-private").checked =
+        existingSellerProfile?.agreement_flags?.private_storage === true;
+    document.getElementById("seller-agreement-dispute").checked =
+        existingSellerProfile?.agreement_flags?.dispute_resolution === true;
+    document.getElementById("seller-agreement-products").checked =
+        existingSellerProfile?.agreement_flags?.product_rules === true;
+    document.getElementById("seller-agreement-rules").checked =
+        existingSellerProfile?.agreement_flags?.marketplace_rules === true;
+
+    renderSellerStatusSummary(existingSellerProfile, session.user);
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
 
-        const updatedProfile = {
-            id: session.user.id,
-            username: (profile.username || session.user.user_metadata?.username || "").toLowerCase(),
-            full_name: profile.full_name || session.user.user_metadata?.full_name || "",
-            auth_email: session.user.email,
-            workspace_access: DEFAULT_WORKSPACE_ACCESS,
-            phone_number: document.getElementById("seller-phone").value.trim(),
-            business_name: document.getElementById("seller-business-name").value.trim(),
-            social_handle_url: document.getElementById("seller-social-handle").value.trim(),
-            bank_account_holder_name: document.getElementById("seller-bank-holder").value.trim(),
-            marketplace_profile_link: document.getElementById("seller-marketplace-link").value.trim(),
-            linked_marketplaces: parseMarketplaceList(document.getElementById("seller-marketplaces").value),
-            otp_alerts: document.getElementById("seller-otp-alerts").checked
+        const fullName = document.getElementById("seller-full-name").value.trim();
+        const email = session.user.email || document.getElementById("seller-email").value.trim().toLowerCase();
+        const phone = document.getElementById("seller-phone").value.trim();
+        const idNumber = document.getElementById("seller-id-number").value.trim();
+        const location = document.getElementById("seller-location").value.trim();
+        const studentNumber = document.getElementById("seller-student-number").value.trim();
+        const institution = document.getElementById("seller-institution").value.trim();
+        const verificationNotes = document.getElementById("seller-verification-notes").value.trim();
+        const sellingPlatforms = getCheckedValues("seller-selling-platform");
+        const platformLinks = {
+            facebook_marketplace: document.getElementById("seller-platform-facebook").value.trim(),
+            whatsapp: document.getElementById("seller-platform-whatsapp").value.trim(),
+            instagram: document.getElementById("seller-platform-instagram").value.trim(),
+            gumtree: document.getElementById("seller-platform-gumtree").value.trim(),
+            other_name: document.getElementById("seller-platform-other-name").value.trim(),
+            other: document.getElementById("seller-platform-other-link").value.trim()
+        };
+        const agreementFlags = {
+            accurate: document.getElementById("seller-agreement-accurate").checked,
+            private_storage: document.getElementById("seller-agreement-private").checked,
+            dispute_resolution: document.getElementById("seller-agreement-dispute").checked,
+            product_rules: document.getElementById("seller-agreement-products").checked,
+            marketplace_rules: document.getElementById("seller-agreement-rules").checked
         };
 
-        const { data, error } = await supabase
-            .from("profiles")
-            .upsert(updatedProfile, { onConflict: "id" })
-            .select("*")
-            .maybeSingle();
+        const requiredSellerInfoComplete = [fullName, email, phone, idNumber, location].every(Boolean);
+        const allAgreementsAccepted = Object.values(agreementFlags).every(Boolean);
 
-        if (error) {
-            setStatusMessage("seller-save-status", error.message, "error");
+        if (!requiredSellerInfoComplete) {
+            setStatusMessage(
+                "seller-save-status",
+                "Complete all required seller information before submitting your profile.",
+                "error"
+            );
             return;
         }
 
-        const savedProfile = data || updatedProfile;
+        if (!sellingPlatforms.length) {
+            setStatusMessage(
+                "seller-save-status",
+                "Select at least one external selling platform.",
+                "error"
+            );
+            return;
+        }
 
-        renderSellerSummary(savedProfile);
-        populateAccountNav(savedProfile);
+        if (!allAgreementsAccepted) {
+            setStatusMessage(
+                "seller-save-status",
+                "Accept all seller agreement statements before submitting.",
+                "error"
+            );
+            return;
+        }
+
+        let verificationDocuments = existingSellerProfile?.verification_documents || {};
+
+        try {
+            const idDocumentFile = document.getElementById("seller-id-document").files?.[0];
+            const studentProofFile = document.getElementById("seller-student-proof").files?.[0];
+            const addressProofFile = document.getElementById("seller-address-proof").files?.[0];
+
+            if (idDocumentFile) {
+                verificationDocuments.id_document = await uploadSellerVerificationFile(
+                    session.user.id,
+                    "id-document",
+                    idDocumentFile
+                );
+            }
+
+            if (studentProofFile) {
+                verificationDocuments.student_registration = await uploadSellerVerificationFile(
+                    session.user.id,
+                    "student-registration",
+                    studentProofFile
+                );
+            }
+
+            if (addressProofFile) {
+                verificationDocuments.proof_of_address = await uploadSellerVerificationFile(
+                    session.user.id,
+                    "proof-of-address",
+                    addressProofFile
+                );
+            }
+        } catch (error) {
+            setStatusMessage(
+                "seller-save-status",
+                `Document upload failed: ${error.message}`,
+                "error"
+            );
+            return;
+        }
+
+        const documentCount = Object.values(verificationDocuments).filter(Boolean).length;
+        const sufficientRecordsSubmitted = requiredSellerInfoComplete && documentCount > 0;
+        const sellerVerificationStatus = requiredSellerInfoComplete ? "Pending Verification" : EMPTY_LABEL;
+        const sellerTrustScore = sufficientRecordsSubmitted ? 100 : 0;
+        const isRegisteredSeller = requiredSellerInfoComplete;
+        const purchaseConfidenceScore = isRegisteredSeller ? 100 : 0;
+
+        const updatedPublicProfile = {
+            id: session.user.id,
+            username: (profile.username || session.user.user_metadata?.username || "").toLowerCase(),
+            full_name: fullName,
+            auth_email: email,
+            workspace_access: DEFAULT_WORKSPACE_ACCESS,
+            phone_number: phone,
+            marketplace_profile_link:
+                platformLinks.facebook_marketplace ||
+                platformLinks.instagram ||
+                platformLinks.gumtree ||
+                platformLinks.whatsapp ||
+                platformLinks.other ||
+                null,
+            linked_marketplaces: sellingPlatforms
+        };
+
+        const { data: publicProfileData, error: publicProfileError } = await supabase
+            .from("profiles")
+            .upsert(updatedPublicProfile, { onConflict: "id" })
+            .select("*")
+            .maybeSingle();
+
+        if (publicProfileError) {
+            setStatusMessage("seller-save-status", publicProfileError.message, "error");
+            return;
+        }
+
+        const sellerProfilePayload = {
+            user_id: session.user.id,
+            full_name: fullName,
+            email,
+            phone,
+            id_number: idNumber,
+            location,
+            student_number: studentNumber || null,
+            institution: institution || null,
+            selling_platforms: sellingPlatforms,
+            platform_links: platformLinks,
+            verification_notes: verificationNotes || null,
+            verification_documents: verificationDocuments,
+            agreement_flags: agreementFlags,
+            seller_verification_status: sellerVerificationStatus,
+            seller_trust_score: sellerTrustScore,
+            is_registered_seller: isRegisteredSeller,
+            purchase_confidence_score: purchaseConfidenceScore,
+            listed_products_count: existingSellerProfile?.listed_products_count || 0,
+            completed_sales_count: existingSellerProfile?.completed_sales_count || 0
+        };
+
+        const { data: sellerProfileData, error: sellerProfileError } = await supabase
+            .from("seller_profiles")
+            .upsert(sellerProfilePayload, { onConflict: "user_id" })
+            .select("*")
+            .maybeSingle();
+
+        if (sellerProfileError) {
+            setStatusMessage("seller-save-status", sellerProfileError.message, "error");
+            return;
+        }
+
+        const savedPublicProfile = publicProfileData || updatedPublicProfile;
+        const savedSellerProfile = sellerProfileData || sellerProfilePayload;
+
+        renderSellerStatusSummary(savedSellerProfile, session.user);
+        populateAccountNav(savedPublicProfile);
 
         await createHistoryEntry({
             userId: session.user.id,
             eventType: "profile",
-            title: "Seller profile updated",
-            description: "Your seller verification details were saved and are now available for future buyer checks."
+            title: "Seller profile submitted",
+            description: "Your seller verification details were saved for admin verification and dispute handling."
         });
 
-        const { snapshot } = await collectUserSnapshot(session.user.id, savedProfile);
+        const { snapshot } = await collectUserSnapshot(session.user.id, savedPublicProfile);
         await upsertAnalyticsSnapshot(session.user.id, snapshot);
 
-        setStatusMessage("seller-save-status", "Seller profile saved successfully.", "success");
+        setStatusMessage("seller-save-status", "Seller profile submitted successfully.", "success");
+        window.setTimeout(() => {
+            window.location.href = USER_REDIRECT_PAGE;
+        }, 1200);
     });
 }
 
@@ -1130,91 +1860,267 @@ function calculateTrustResult(criteria, matches) {
     };
 }
 
-async function loadLatestBuyerResult(userId) {
-    const { data } = await supabase
-        .from("verification_checks")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-    renderBuyerResult(data || null);
-}
-
 async function initBuyerPage(session) {
-    const form = document.getElementById("buyer-check-form");
-    if (!form) {
+    const buyerProfileForm = document.getElementById("buyer-profile-form");
+    const purchaseForm = document.getElementById("buyer-purchase-form");
+
+    if (!buyerProfileForm && !purchaseForm) {
         return;
     }
 
-    await loadLatestBuyerResult(session.user.id);
+    const existingBuyerProfile = await fetchBuyerProfile(session.user.id);
+    const existingPlatformLinks =
+        existingBuyerProfile?.platform_links && typeof existingBuyerProfile.platform_links === "object"
+            ? existingBuyerProfile.platform_links
+            : {};
 
-    form.addEventListener("submit", async (event) => {
-        event.preventDefault();
+    if (buyerProfileForm) {
+        document.getElementById("buyer-full-name").value =
+            existingBuyerProfile?.full_name || session.user.user_metadata?.full_name || "";
+        document.getElementById("buyer-email").value =
+            existingBuyerProfile?.email || session.user.email || "";
+        document.getElementById("buyer-phone").value =
+            existingBuyerProfile?.phone || "";
+        document.getElementById("buyer-location").value =
+            existingBuyerProfile?.location || "";
+        document.getElementById("buyer-student-number").value =
+            existingBuyerProfile?.student_number || "";
+        document.getElementById("buyer-institution").value =
+            existingBuyerProfile?.institution || "";
+        document.getElementById("buyer-platform-facebook").value =
+            existingPlatformLinks.facebook_marketplace || "";
+        document.getElementById("buyer-platform-whatsapp").value =
+            existingPlatformLinks.whatsapp || "";
+        document.getElementById("buyer-platform-instagram").value =
+            existingPlatformLinks.instagram || "";
+        document.getElementById("buyer-platform-gumtree").value =
+            existingPlatformLinks.gumtree || "";
+        document.getElementById("buyer-platform-other-name").value =
+            existingPlatformLinks.other_name || "";
+        document.getElementById("buyer-platform-other-link").value =
+            existingPlatformLinks.other || "";
+        document.getElementById("buyer-contact-reference").value =
+            existingPlatformLinks.contact_reference || "";
+        document.getElementById("buyer-extra-details").value =
+            existingPlatformLinks.extra_buyer_details || "";
+        document.getElementById("buyer-verification-notes").value =
+            existingBuyerProfile?.verification_notes || "";
 
-        const checkPayload = {
-            user_id: session.user.id,
-            seller_username_input: document.getElementById("buyer-seller-username").value.trim(),
-            seller_email: document.getElementById("buyer-seller-email").value.trim().toLowerCase(),
-            seller_phone: document.getElementById("buyer-seller-phone").value.trim(),
-            social_handle_url: document.getElementById("buyer-social-handle").value.trim(),
-            business_name: document.getElementById("buyer-business-name").value.trim(),
-            bank_account_holder_name: document.getElementById("buyer-bank-holder").value.trim(),
-            marketplace_profile_link: document.getElementById("buyer-marketplace-link").value.trim(),
-            otp_confirmed: document.getElementById("buyer-otp-confirmed").checked
-        };
+        const selectedPlatforms = Array.isArray(existingBuyerProfile?.buying_platforms)
+            ? existingBuyerProfile.buying_platforms
+            : [];
 
-        const matches = await findSellerMatches(checkPayload);
-        const result = calculateTrustResult(checkPayload, matches);
-
-        if (!result) {
-            setStatusMessage(
-                "buyer-check-status",
-                "Add at least one seller detail before calculating a trust score.",
-                "error"
-            );
-            renderBuyerResult(null);
-            return;
-        }
-
-        const insertPayload = {
-            ...checkPayload,
-            seller_profile_id: result.matchedSellerId,
-            matched_registered_user: result.matchedRegisteredUser,
-            matched_username: result.matchedUsername,
-            matched_detail_rate: result.matchedDetailRate,
-            trust_score: result.trustScore,
-            risk_category: result.riskCategory
-        };
-
-        const { data, error } = await supabase
-            .from("verification_checks")
-            .insert(insertPayload)
-            .select("*")
-            .single();
-
-        if (error) {
-            setStatusMessage("buyer-check-status", error.message, "error");
-            return;
-        }
-
-        renderBuyerResult(data);
-
-        await createHistoryEntry({
-            userId: session.user.id,
-            eventType: "verification",
-            title: "Buyer trust check completed",
-            description: `A seller verification check returned a score of ${result.trustScore}/100 with ${result.riskCategory.toLowerCase()} risk.`,
-            relatedCheckId: data.id
+        document.querySelectorAll('input[name="buyer-platform"]').forEach((input) => {
+            input.checked = selectedPlatforms.includes(input.value);
         });
 
-        const { snapshot } = await collectUserSnapshot(session.user.id);
-        await upsertAnalyticsSnapshot(session.user.id, snapshot);
+        document.getElementById("buyer-behaviour-respectful").checked =
+            existingBuyerProfile?.behaviour_flags?.respectful === true;
+        document.getElementById("buyer-behaviour-no-fake-offers").checked =
+            existingBuyerProfile?.behaviour_flags?.no_fake_offers === true;
+        document.getElementById("buyer-behaviour-honour-agreements").checked =
+            existingBuyerProfile?.behaviour_flags?.honour_agreements === true;
+        document.getElementById("buyer-behaviour-cancel-properly").checked =
+            existingBuyerProfile?.behaviour_flags?.cancel_properly === true;
+        document.getElementById("buyer-behaviour-rules").checked =
+            existingBuyerProfile?.behaviour_flags?.marketplace_rules === true;
 
-        setStatusMessage("buyer-check-status", "Trust score saved to your account history.", "success");
-        form.reset();
-    });
+        renderBuyerResult(existingBuyerProfile);
+
+        buyerProfileForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            let verificationDocuments = existingBuyerProfile?.verification_documents || {};
+
+            try {
+                const identityFile = document.getElementById("buyer-identity-proof").files?.[0];
+                const studentFile = document.getElementById("buyer-student-proof").files?.[0];
+                const addressFile = document.getElementById("buyer-address-proof").files?.[0];
+
+                if (identityFile) {
+                    verificationDocuments.identity_proof = await uploadBuyerVerificationFile(
+                        session.user.id,
+                        "identity-proof",
+                        identityFile
+                    );
+                }
+
+                if (studentFile) {
+                    verificationDocuments.student_registration = await uploadBuyerVerificationFile(
+                        session.user.id,
+                        "student-registration",
+                        studentFile
+                    );
+                }
+
+                if (addressFile) {
+                    verificationDocuments.proof_of_address = await uploadBuyerVerificationFile(
+                        session.user.id,
+                        "proof-of-address",
+                        addressFile
+                    );
+                }
+            } catch (error) {
+                setStatusMessage("buyer-profile-status", `Document upload failed: ${error.message}`, "error");
+                return;
+            }
+
+            const buyerProfilePayload = {
+                user_id: session.user.id,
+                full_name: document.getElementById("buyer-full-name").value.trim(),
+                email: (session.user.email || document.getElementById("buyer-email").value.trim()).toLowerCase(),
+                phone: document.getElementById("buyer-phone").value.trim(),
+                location: document.getElementById("buyer-location").value.trim(),
+                student_number: document.getElementById("buyer-student-number").value.trim() || null,
+                institution: document.getElementById("buyer-institution").value.trim() || null,
+                buying_platforms: getCheckedValues("buyer-platform"),
+                platform_links: {
+                    facebook_marketplace: document.getElementById("buyer-platform-facebook").value.trim(),
+                    whatsapp: document.getElementById("buyer-platform-whatsapp").value.trim(),
+                    instagram: document.getElementById("buyer-platform-instagram").value.trim(),
+                    gumtree: document.getElementById("buyer-platform-gumtree").value.trim(),
+                    other_name: document.getElementById("buyer-platform-other-name").value.trim(),
+                    other: document.getElementById("buyer-platform-other-link").value.trim(),
+                    contact_reference: document.getElementById("buyer-contact-reference").value.trim(),
+                    extra_buyer_details: document.getElementById("buyer-extra-details").value.trim()
+                },
+                verification_notes: document.getElementById("buyer-verification-notes").value.trim() || null,
+                behaviour_flags: {
+                    respectful: document.getElementById("buyer-behaviour-respectful").checked,
+                    no_fake_offers: document.getElementById("buyer-behaviour-no-fake-offers").checked,
+                    honour_agreements: document.getElementById("buyer-behaviour-honour-agreements").checked,
+                    cancel_properly: document.getElementById("buyer-behaviour-cancel-properly").checked,
+                    marketplace_rules: document.getElementById("buyer-behaviour-rules").checked
+                },
+                verification_documents: verificationDocuments
+            };
+
+            const buyerTrustScore = calculateBuyerTrustScore(buyerProfilePayload);
+            buyerProfilePayload.buyer_trust_score = buyerTrustScore;
+            buyerProfilePayload.buyer_verification_status = getBuyerVerificationStatus(
+                buyerProfilePayload,
+                buyerTrustScore
+            );
+
+            const publicProfilePayload = {
+                id: session.user.id,
+                username: session.user.user_metadata?.username?.toLowerCase() || session.user.email?.split("@")[0] || "",
+                full_name: buyerProfilePayload.full_name,
+                auth_email: buyerProfilePayload.email,
+                workspace_access: DEFAULT_WORKSPACE_ACCESS,
+                phone_number: buyerProfilePayload.phone
+            };
+
+            const { error: publicProfileError } = await supabase
+                .from("profiles")
+                .upsert(publicProfilePayload, { onConflict: "id" });
+
+            if (publicProfileError) {
+                setStatusMessage("buyer-profile-status", publicProfileError.message, "error");
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from("buyer_profiles")
+                .upsert(buyerProfilePayload, { onConflict: "user_id" })
+                .select("*")
+                .maybeSingle();
+
+            if (error) {
+                setStatusMessage("buyer-profile-status", error.message, "error");
+                return;
+            }
+
+            const savedBuyerProfile = data || buyerProfilePayload;
+            renderBuyerResult(savedBuyerProfile);
+
+            await createHistoryEntry({
+                userId: session.user.id,
+                eventType: "profile",
+                title: "Buyer profile submitted",
+                description: `Buyer profile submitted successfully. Buyer trust score: ${buyerTrustScore}%.`
+            });
+
+            const { snapshot } = await collectUserSnapshot(session.user.id);
+            await upsertAnalyticsSnapshot(session.user.id, snapshot);
+
+            setStatusMessage(
+                "buyer-profile-status",
+                `Buyer profile submitted successfully. Your Buyer Trust Score is ${buyerTrustScore}%.`,
+                "success"
+            );
+
+            window.setTimeout(() => {
+                window.location.href = USER_REDIRECT_PAGE;
+            }, 1800);
+        });
+    }
+
+    if (purchaseForm) {
+        purchaseForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const productName = document.getElementById("purchase-product-name").value.trim();
+            const listingId = document.getElementById("purchase-listing-id").value.trim() || null;
+            const sellerName = document.getElementById("purchase-seller-name").value.trim();
+            const sellerEmail = document.getElementById("purchase-seller-email").value.trim().toLowerCase();
+            const sellerPhone = document.getElementById("purchase-seller-phone").value.trim();
+
+            if (!productName || !sellerName || !sellerEmail || !sellerPhone) {
+                setStatusMessage(
+                    "buyer-purchase-status",
+                    "Complete the product and seller contact details before saving the purchase.",
+                    "error"
+                );
+                return;
+            }
+
+            const registeredSeller = await findRegisteredSellerByContact(sellerEmail, sellerPhone);
+            const fraudWarning = await hasSellerFraudWarning(sellerEmail, sellerPhone);
+            const purchasePayload = {
+                buyer_user_id: session.user.id,
+                listing_id: listingId,
+                product_name: productName,
+                seller_type: registeredSeller ? "Registered Seller" : "Unregistered Seller",
+                seller_name: registeredSeller?.full_name || sellerName,
+                seller_email: registeredSeller?.email || sellerEmail,
+                seller_phone: registeredSeller?.phone || sellerPhone,
+                purchase_status: "pending",
+                fraud_reported: false,
+                fraud_reason: null
+            };
+
+            const { data, error } = await supabase
+                .from("purchases")
+                .insert(purchasePayload)
+                .select("*")
+                .single();
+
+            if (error) {
+                setStatusMessage("buyer-purchase-status", error.message, "error");
+                return;
+            }
+
+            await createHistoryEntry({
+                userId: session.user.id,
+                eventType: "verification",
+                title: "Purchase saved",
+                description: `Purchase record saved for ${productName} with ${purchasePayload.seller_type.toLowerCase()}.`
+            });
+
+            setStatusMessage(
+                "buyer-purchase-status",
+                fraudWarning
+                    ? "Purchase saved. Warning: This seller has been reported before."
+                    : registeredSeller
+                        ? "Purchase record saved successfully. Registered Seller. Purchase Confidence: 100%."
+                        : "Purchase record saved successfully.",
+                fraudWarning ? "error" : "success"
+            );
+
+            purchaseForm.reset();
+        });
+    }
 }
 
 async function initPortalPage() {
@@ -1233,7 +2139,7 @@ async function initPortalPage() {
         await initSellerPage(session, profile);
     }
 
-    if (document.getElementById("buyer-check-form")) {
+    if (document.getElementById("buyer-profile-form") || document.getElementById("buyer-purchase-form")) {
         await initBuyerPage(session);
     }
 }

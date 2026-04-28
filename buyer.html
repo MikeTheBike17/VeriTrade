@@ -38,81 +38,222 @@
         <div class="portal-container">
             <div class="dashboard-grid">
                 <article class="detail-card portal-form-card">
-                    <span class="card-kicker">Buyer verification</span>
-                    <h3>Run a seller trust check</h3>
-                    <p class="form-note">Enter the seller details shared in chat, on the marketplace, or during payment. VeriTrade will compare them against the saved seller identity where possible.</p>
-                    <form id="buyer-check-form" class="portal-form">
+                    <span class="card-kicker">Buyer profile</span>
+                    <h3>Submit your buyer details for scoring</h3>
+                    <p class="form-note">The more complete and reliable your buyer information is, the stronger your buyer trust score becomes on ReTrade.</p>
+                    <form id="buyer-profile-form" class="portal-form">
                         <div class="portal-form-grid">
-                            <div class="form-group">
-                                <label for="buyer-seller-username">Seller Username</label>
-                                <input type="text" id="buyer-seller-username" placeholder="Optional VeriTrade username">
+                            <div class="form-group portal-form-grid-wide">
+                                <label>1. Buyer Personal Information</label>
+                                <p class="form-note">Complete your core identity and contact fields to build buyer confidence.</p>
                             </div>
                             <div class="form-group">
-                                <label for="buyer-seller-email">Seller Email</label>
-                                <input type="email" id="buyer-seller-email" placeholder="Enter the seller email">
+                                <label for="buyer-full-name">Full Name</label>
+                                <input type="text" id="buyer-full-name" placeholder="Enter your full name" required>
                             </div>
                             <div class="form-group">
-                                <label for="buyer-seller-phone">Seller Phone Number</label>
-                                <input type="text" id="buyer-seller-phone" placeholder="Enter the seller phone number">
+                                <label for="buyer-email">Email Address</label>
+                                <input type="email" id="buyer-email" readonly>
                             </div>
                             <div class="form-group">
-                                <label for="buyer-social-handle">Social Handle or Profile URL</label>
-                                <input type="text" id="buyer-social-handle" placeholder="Instagram, TikTok, Facebook, or similar">
+                                <label for="buyer-phone">Phone Number</label>
+                                <input type="text" id="buyer-phone" placeholder="Enter your phone number" required>
                             </div>
                             <div class="form-group">
-                                <label for="buyer-business-name">Business Name</label>
-                                <input type="text" id="buyer-business-name" placeholder="Enter the business or shop name">
+                                <label for="buyer-location">Location / Area</label>
+                                <input type="text" id="buyer-location" placeholder="Enter your area or suburb" required>
                             </div>
                             <div class="form-group">
-                                <label for="buyer-bank-holder">Bank Account Holder Name</label>
-                                <input type="text" id="buyer-bank-holder" placeholder="Optional bank account holder name">
+                                <label for="buyer-student-number">Student Number</label>
+                                <input type="text" id="buyer-student-number" placeholder="Optional student number">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-institution">Institution / Campus</label>
+                                <input type="text" id="buyer-institution" placeholder="Optional institution or campus">
+                            </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <label>2. Buying Platform Information</label>
+                                <p class="form-note">Tell ReTrade where you usually buy or communicate with sellers.</p>
                             </div>
                             <div class="form-group portal-form-grid-wide">
-                                <label for="buyer-marketplace-link">Marketplace Profile Link</label>
-                                <input type="text" id="buyer-marketplace-link" placeholder="Paste the seller marketplace profile link">
+                                <label>Where do you usually buy or communicate with sellers?</label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="buyer-platform" value="Facebook Marketplace">
+                                    Facebook Marketplace
+                                </label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="buyer-platform" value="WhatsApp">
+                                    WhatsApp
+                                </label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="buyer-platform" value="Instagram">
+                                    Instagram
+                                </label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="buyer-platform" value="Gumtree">
+                                    Gumtree
+                                </label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="buyer-platform" value="Other">
+                                    Other
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-platform-facebook">Facebook Marketplace Profile</label>
+                                <input type="text" id="buyer-platform-facebook" placeholder="Profile link or username">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-platform-whatsapp">WhatsApp</label>
+                                <input type="text" id="buyer-platform-whatsapp" placeholder="Phone number or wa.me link">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-platform-instagram">Instagram</label>
+                                <input type="text" id="buyer-platform-instagram" placeholder="@username or profile link">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-platform-gumtree">Gumtree</label>
+                                <input type="text" id="buyer-platform-gumtree" placeholder="Profile link or username">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-platform-other-name">Other Platform Name</label>
+                                <input type="text" id="buyer-platform-other-name" placeholder="Enter the platform name">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-platform-other-link">Other Platform Link or Username</label>
+                                <input type="text" id="buyer-platform-other-link" placeholder="Enter the profile link or username">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-contact-reference">Contact Reference</label>
+                                <input type="text" id="buyer-contact-reference" placeholder="Optional reference or contact note">
+                            </div>
+                            <div class="form-group portal-form-grid-wide">
+                                <label for="buyer-extra-details">Extra Buyer Details</label>
+                                <textarea id="buyer-extra-details" rows="4" placeholder="Add any extra buying details that help establish trust."></textarea>
+                            </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <label>3. Buyer Behaviour Information</label>
+                                <p class="form-note">These behaviour confirmations support a stronger buyer reputation score.</p>
                             </div>
                         </div>
 
                         <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="buyer-otp-confirmed">
-                            I received and confirmed the seller OTP signal
+                            <input type="checkbox" id="buyer-behaviour-respectful">
+                            I agree to communicate respectfully with sellers.
+                        </label>
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="buyer-behaviour-no-fake-offers">
+                            I agree not to make fake offers.
+                        </label>
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="buyer-behaviour-honour-agreements">
+                            I agree to honour accepted purchase agreements.
+                        </label>
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="buyer-behaviour-cancel-properly">
+                            I agree to cancel properly if I no longer want a product.
+                        </label>
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="buyer-behaviour-rules">
+                            I agree to follow the ReTrade marketplace rules.
                         </label>
 
-                        <button type="submit" class="submit-btn">Calculate Trust Score</button>
-                        <p class="status-banner" id="buyer-check-status"></p>
+                        <div class="portal-form-grid">
+                            <div class="form-group portal-form-grid-wide">
+                                <label>4. Buyer Verification Information</label>
+                                <p class="form-note">Verification records are optional for now, but they can improve the buyer trust score.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-identity-proof">Upload Proof of Identity</label>
+                                <input type="file" id="buyer-identity-proof" accept=".pdf,.png,.jpg,.jpeg">
+                            </div>
+                            <div class="form-group">
+                                <label for="buyer-student-proof">Upload Proof of Student Registration</label>
+                                <input type="file" id="buyer-student-proof" accept=".pdf,.png,.jpg,.jpeg">
+                            </div>
+                            <div class="form-group portal-form-grid-wide">
+                                <label for="buyer-address-proof">Upload Proof of Address</label>
+                                <input type="file" id="buyer-address-proof" accept=".pdf,.png,.jpg,.jpeg">
+                            </div>
+                            <div class="form-group portal-form-grid-wide">
+                                <label for="buyer-verification-notes">Additional Verification Notes</label>
+                                <textarea id="buyer-verification-notes" rows="4" placeholder="Add any notes that help explain your buyer identity or communication style."></textarea>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="submit-btn">Submit Buyer Profile</button>
+                        <p class="status-banner" id="buyer-profile-status"></p>
                     </form>
                 </article>
 
                 <article class="detail-card result-card" id="buyer-result-card">
-                    <span class="card-kicker">Latest result</span>
+                    <span class="card-kicker">Buyer trust score</span>
                     <h3 id="buyer-result-heading">none</h3>
-                    <p id="buyer-result-message">Run a verification check to see a trust score, risk category, and matched seller signals.</p>
+                    <p id="buyer-result-message">Submit your buyer profile to calculate a trust score and store your verification status.</p>
                     <div class="result-score-row">
                         <div>
-                            <span class="result-label">Trust score</span>
+                            <span class="result-label">Buyer score</span>
                             <strong class="result-score" id="buyer-result-score">none</strong>
                         </div>
                         <div>
-                            <span class="result-label">Risk category</span>
-                            <strong class="result-pill neutral-pill" id="buyer-result-risk">none</strong>
+                            <span class="result-label">Verification status</span>
+                            <strong class="result-pill neutral-pill" id="buyer-result-status">none</strong>
                         </div>
                     </div>
                     <ul class="detail-list result-meta">
-                        <li><span>Registered seller match</span><strong id="buyer-result-registered">none</strong></li>
-                        <li><span>Matched details rate</span><strong id="buyer-result-match-rate">none</strong></li>
-                        <li><span>OTP signal</span><strong id="buyer-result-otp">none</strong></li>
+                        <li><span>Buying platforms</span><strong id="buyer-result-platforms">none</strong></li>
+                        <li><span>Behaviour agreements</span><strong id="buyer-result-behaviour">none</strong></li>
+                        <li><span>Verification records</span><strong id="buyer-result-documents">none</strong></li>
                     </ul>
                 </article>
 
+                <article class="detail-card portal-form-card">
+                    <span class="card-kicker">Purchase flow</span>
+                    <h3>Record a purchase and seller contact details</h3>
+                    <p class="form-note">For unregistered sellers, only the seller name, email, and phone number are stored with the purchase record.</p>
+                    <form id="buyer-purchase-form" class="portal-form">
+                        <div class="portal-form-grid">
+                            <div class="form-group">
+                                <label for="purchase-product-name">Product Name</label>
+                                <input type="text" id="purchase-product-name" placeholder="Enter the product name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="purchase-listing-id">Listing ID</label>
+                                <input type="text" id="purchase-listing-id" placeholder="Optional listing reference">
+                            </div>
+                            <div class="form-group">
+                                <label for="purchase-seller-name">Seller Name</label>
+                                <input type="text" id="purchase-seller-name" placeholder="Enter the seller name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="purchase-seller-email">Seller Email</label>
+                                <input type="email" id="purchase-seller-email" placeholder="Enter the seller email" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="purchase-seller-phone">Seller Phone</label>
+                                <input type="text" id="purchase-seller-phone" placeholder="Enter the seller phone number" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="submit-btn">Save Purchase Record</button>
+                        <p class="status-banner" id="buyer-purchase-status"></p>
+                    </form>
+                </article>
+
                 <article class="detail-card">
-                    <span class="card-kicker">Signals used</span>
-                    <h3>How the buyer score is judged</h3>
+                    <span class="card-kicker">Scoring guide</span>
+                    <h3>How the buyer score is calculated</h3>
                     <ul class="workspace-list">
-                        <li>Matched VeriTrade username, email, phone, and marketplace details.</li>
-                        <li>Consistency between business identity and seller profile fields.</li>
-                        <li>OTP confirmation as an additional ownership signal.</li>
-                        <li>Whether the seller appears as a registered VeriTrade user.</li>
-                        <li>Saved record history for later review in your account workspace.</li>
+                        <li>Full name completed: 10%</li>
+                        <li>Email completed: 10%</li>
+                        <li>Phone number completed: 15%</li>
+                        <li>Location completed: 10%</li>
+                        <li>Student number or institution completed: 10%</li>
+                        <li>At least one platform selected: 10%</li>
+                        <li>Platform link, username, or reference added: 10%</li>
+                        <li>Behaviour agreement checkboxes completed: 15%</li>
+                        <li>Verification document uploaded: 10%</li>
                     </ul>
                 </article>
             </div>

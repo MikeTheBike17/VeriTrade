@@ -38,82 +38,171 @@
         <div class="portal-container">
             <div class="dashboard-grid">
                 <article class="detail-card portal-form-card">
-                    <span class="card-kicker">Seller profile</span>
-                    <h3>Save the seller details buyers can later verify</h3>
-                    <p class="form-note">Your signed-up account details stay linked to this profile. Add the seller identity details that buyers may later compare before paying.</p>
+                    <span class="card-kicker">Seller registration</span>
+                    <h3>Register as a verified seller</h3>
+                    <p class="form-note">This form stores seller verification details for admin verification and dispute handling. Private records are saved securely and are not shown publicly on the site.</p>
                     <form id="seller-profile-form" class="portal-form">
                         <div class="portal-form-grid">
-                            <div class="form-group">
-                                <label for="seller-full-name">Registered Name</label>
-                                <input type="text" id="seller-full-name" readonly>
+                            <div class="form-group portal-form-grid-wide">
+                                <label>1. Seller Personal Information</label>
+                                <p class="form-note">These details identify the seller account behind a trade and help with secure admin verification if a dispute is reported.</p>
                             </div>
                             <div class="form-group">
-                                <label for="seller-username">Username</label>
-                                <input type="text" id="seller-username" readonly>
+                                <label for="seller-full-name">Full Name</label>
+                                <input type="text" id="seller-full-name" placeholder="Enter your full name" required>
                             </div>
                             <div class="form-group">
-                                <label for="seller-email">Account Email</label>
+                                <label for="seller-email">Email Address</label>
                                 <input type="email" id="seller-email" readonly>
                             </div>
                             <div class="form-group">
-                                <label for="seller-phone">Seller Phone Number</label>
-                                <input type="text" id="seller-phone" placeholder="Enter the phone buyers use during trades">
+                                <label for="seller-phone">Phone Number</label>
+                                <input type="text" id="seller-phone" placeholder="Enter your phone number" required>
                             </div>
                             <div class="form-group">
-                                <label for="seller-business-name">Business Name</label>
-                                <input type="text" id="seller-business-name" placeholder="Enter your business or shop name">
+                                <label for="seller-id-number">South African ID Number</label>
+                                <input type="text" id="seller-id-number" placeholder="Enter your South African ID number" required>
                             </div>
                             <div class="form-group">
-                                <label for="seller-social-handle">Social Handle or Profile URL</label>
-                                <input type="text" id="seller-social-handle" placeholder="TikTok, Instagram, Facebook, or similar">
+                                <label for="seller-location">Physical Area / Location</label>
+                                <input type="text" id="seller-location" placeholder="Enter your area or suburb" required>
                             </div>
                             <div class="form-group">
-                                <label for="seller-bank-holder">Bank Account Holder Name</label>
-                                <input type="text" id="seller-bank-holder" placeholder="Optional matching detail for buyers">
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-marketplace-link">Primary Marketplace Profile Link</label>
-                                <input type="text" id="seller-marketplace-link" placeholder="Paste your main marketplace profile URL">
+                                <label for="seller-student-number">Student Number</label>
+                                <input type="text" id="seller-student-number" placeholder="Optional student number">
                             </div>
                             <div class="form-group portal-form-grid-wide">
-                                <label for="seller-marketplaces">Linked Marketplaces</label>
-                                <textarea id="seller-marketplaces" rows="4" placeholder="Enter marketplace names or profile links, separated by commas"></textarea>
+                                <label for="seller-institution">Institution / Campus</label>
+                                <input type="text" id="seller-institution" placeholder="Optional institution or campus">
+                            </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <label>2. Seller Verification Records</label>
+                                <p class="form-note">Uploaded verification records remain private and are only intended for secure admin review and dispute resolution.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-id-document">Upload ID Document</label>
+                                <input type="file" id="seller-id-document" accept=".pdf,.png,.jpg,.jpeg">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-student-proof">Upload Proof of Student Registration</label>
+                                <input type="file" id="seller-student-proof" accept=".pdf,.png,.jpg,.jpeg">
+                            </div>
+                            <div class="form-group portal-form-grid-wide">
+                                <label for="seller-address-proof">Upload Proof of Address</label>
+                                <input type="file" id="seller-address-proof" accept=".pdf,.png,.jpg,.jpeg">
+                            </div>
+                            <div class="form-group portal-form-grid-wide">
+                                <label for="seller-verification-notes">Additional Verification Notes</label>
+                                <textarea id="seller-verification-notes" rows="4" placeholder="Add any notes that may help admin verification, such as store context or how you usually trade."></textarea>
+                            </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <label>3. Seller Platform Information</label>
+                                <p class="form-note">Select the external platforms you use and add the matching profile links or usernames below.</p>
+                            </div>
+                            <div class="form-group portal-form-grid-wide">
+                                <label>Where else does the seller sell products?</label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="seller-selling-platform" value="Facebook Marketplace">
+                                    Facebook Marketplace
+                                </label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="seller-selling-platform" value="WhatsApp">
+                                    WhatsApp
+                                </label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="seller-selling-platform" value="Instagram">
+                                    Instagram
+                                </label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="seller-selling-platform" value="Gumtree">
+                                    Gumtree
+                                </label>
+                                <label class="checkbox checkbox-row">
+                                    <input type="checkbox" name="seller-selling-platform" value="Other">
+                                    Other
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-platform-facebook">Facebook Marketplace Profile</label>
+                                <input type="text" id="seller-platform-facebook" placeholder="Profile link or username">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-platform-whatsapp">WhatsApp</label>
+                                <input type="text" id="seller-platform-whatsapp" placeholder="Phone number or wa.me link">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-platform-instagram">Instagram</label>
+                                <input type="text" id="seller-platform-instagram" placeholder="@username or profile link">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-platform-gumtree">Gumtree</label>
+                                <input type="text" id="seller-platform-gumtree" placeholder="Profile link or username">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-platform-other-name">Other Platform Name</label>
+                                <input type="text" id="seller-platform-other-name" placeholder="Enter the platform name">
+                            </div>
+                            <div class="form-group">
+                                <label for="seller-platform-other-link">Other Platform Link or Username</label>
+                                <input type="text" id="seller-platform-other-link" placeholder="Enter the profile link or username">
+                            </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <label>4. Seller Agreement</label>
+                                <p class="form-note">These confirmations are required before the seller profile can be submitted.</p>
                             </div>
                         </div>
 
                         <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="seller-otp-alerts">
-                            Enable OTP alerts for seller verification requests
+                            <input type="checkbox" id="seller-agreement-accurate" required>
+                            I confirm that the information provided is true and accurate.
+                        </label>
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="seller-agreement-private" required>
+                            I understand that my private information will be stored securely for verification and dispute purposes.
+                        </label>
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="seller-agreement-dispute" required>
+                            I understand that if I scam or defraud another user, ReTrade may use my stored verification records to assist with dispute resolution.
+                        </label>
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="seller-agreement-products" required>
+                            I agree not to list fake, stolen, damaged, or misleading products.
+                        </label>
+                        <label class="checkbox checkbox-row">
+                            <input type="checkbox" id="seller-agreement-rules" required>
+                            I agree to follow the ReTrade marketplace rules.
                         </label>
 
-                        <button type="submit" class="submit-btn">Save Seller Profile</button>
+                        <button type="submit" class="submit-btn">Submit Seller Profile</button>
                         <p class="status-banner" id="seller-save-status"></p>
                     </form>
                 </article>
 
                 <article class="detail-card">
-                    <span class="card-kicker">Visible trust signals</span>
-                    <h3>What buyers can match against</h3>
+                    <span class="card-kicker">Privacy and disputes</span>
+                    <h3>Private verification records stay private</h3>
                     <ul class="workspace-list">
-                        <li>Registered username and account-linked email.</li>
-                        <li>Seller phone number used during a live trade.</li>
-                        <li>Business name, social handle, and marketplace links.</li>
-                        <li>Optional bank account holder name when a payment step is involved.</li>
-                        <li>OTP alert readiness for faster verification.</li>
+                        <li>ID numbers, uploaded documents, and private records are not displayed publicly on the site.</li>
+                        <li>Verification data is intended for secure admin verification and dispute handling only.</li>
+                        <li>Buyers gain more confidence when a seller is marked as registered and verified.</li>
+                        <li>Only appropriate public-facing trust indicators should appear on purchase flows.</li>
                     </ul>
                 </article>
 
                 <article class="detail-card">
-                    <span class="card-kicker">Profile snapshot</span>
-                    <h3>Your current seller visibility</h3>
+                    <span class="card-kicker">Verification status</span>
+                    <h3>Your current seller registration</h3>
                     <ul class="detail-list">
-                        <li><span>Registered name</span><strong id="seller-summary-name">none</strong></li>
-                        <li><span>Phone number</span><strong id="seller-summary-phone">none</strong></li>
-                        <li><span>Business name</span><strong id="seller-summary-business">none</strong></li>
-                        <li><span>Social handle</span><strong id="seller-summary-social">none</strong></li>
-                        <li><span>Marketplace profile</span><strong id="seller-summary-marketplace-link">none</strong></li>
-                        <li><span>Linked marketplaces</span><strong id="seller-summary-marketplaces">none</strong></li>
-                        <li><span>OTP alerts</span><strong id="seller-summary-otp">none</strong></li>
+                        <li><span>Registered name</span><strong id="seller-status-name">none</strong></li>
+                        <li><span>Registered seller</span><strong id="seller-status-registered">none</strong></li>
+                        <li><span>Verification status</span><strong id="seller-status-verification">none</strong></li>
+                        <li><span>Seller trust score</span><strong id="seller-status-trust">none</strong></li>
+                        <li><span>Purchase confidence</span><strong id="seller-status-confidence">none</strong></li>
+                        <li><span>Verification records</span><strong id="seller-status-documents">none</strong></li>
+                        <li><span>Selling platforms</span><strong id="seller-status-platforms">none</strong></li>
                     </ul>
                 </article>
             </div>
