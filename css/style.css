@@ -152,6 +152,7 @@ body.portal-page {
     color: #158052;
 }
 
+a.exit-btn,
 .exit-btn {
     margin-left: 40px;
     background: linear-gradient(135deg, #1B7F5C 30%, #001F3F 100%);
@@ -168,8 +169,20 @@ body.portal-page {
     transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.exit-btn:visited {
+a.exit-btn:link,
+a.exit-btn:visited,
+a.exit-btn:hover,
+a.exit-btn:active,
+a.exit-btn:focus,
+.exit-btn:visited,
+.exit-btn a,
+.exit-btn a:link,
+.exit-btn a:visited,
+.exit-btn a:hover,
+.exit-btn a:active,
+.exit-btn a:focus {
     color: #fff;
+    text-decoration: none !important;
 }
 
 .exit-btn:hover {
