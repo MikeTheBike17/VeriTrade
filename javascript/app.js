@@ -184,6 +184,10 @@ function getUserPageUrl(profileOrUser) {
     return `${USER_REDIRECT_PAGE}?${USER_SLUG_PARAM}=${encodeURIComponent(slug)}`;
 }
 
+function getAbsoluteUserPageUrl(profileOrUser) {
+    return new URL(getUserPageUrl(profileOrUser), window.location.href).toString();
+}
+
 function syncCurrentUserPageSlug(profileOrUser) {
     const currentPath = window.location.pathname.split("/").pop();
 
@@ -565,6 +569,35 @@ function renderUserBuyerAnalytics(buyerProfile, purchases) {
     setTextContent("buyer-analytics-accepted", acceptedPurchases ? String(acceptedPurchases) : EMPTY_LABEL);
     setTextContent("buyer-analytics-cancelled", cancelledPurchases ? String(cancelledPurchases) : EMPTY_LABEL);
     setTextContent("buyer-analytics-completed", completedPurchases ? String(completedPurchases) : EMPTY_LABEL);
+
+    setTextContent("purchase-analytics-total", totalPurchases ? String(totalPurchases) : EMPTY_LABEL);
+    setTextContent("purchase-analytics-delivered", deliveredPurchases ? String(deliveredPurchases) : EMPTY_LABEL);
+    setTextContent(
+        "purchase-analytics-not-delivered",
+        notDeliveredPurchases ? String(notDeliveredPurchases) : EMPTY_LABEL
+    );
+    setTextContent("purchase-analytics-fraud", fraudReports ? String(fraudReports) : EMPTY_LABEL);
+    setTextContent(
+        "purchase-analytics-registered",
+        registeredSellerPurchases ? String(registeredSellerPurchases) : EMPTY_LABEL
+    );
+    setTextContent(
+        "purchase-analytics-unregistered",
+        unregisteredSellerPurchases ? String(unregisteredSellerPurchases) : EMPTY_LABEL
+    );
+}
+
+function renderUserPurchaseAnalytics(purchases) {
+    ensureUserPurchaseAnalyticsCard();
+
+    const totalPurchases = purchases.length;
+    const deliveredPurchases = purchases.filter((purchase) => purchase.purchase_status === "delivered").length;
+    const notDeliveredPurchases = purchases.filter((purchase) => purchase.purchase_status === "not_delivered").length;
+    const fraudReports = purchases.filter((purchase) => purchase.fraud_reported).length;
+    const registeredSellerPurchases = purchases.filter((purchase) => purchase.seller_type === "Registered Seller").length;
+    const unregisteredSellerPurchases = purchases.filter(
+        (purchase) => purchase.seller_type === "Unregistered Seller"
+    ).length;
 
     setTextContent("purchase-analytics-total", totalPurchases ? String(totalPurchases) : EMPTY_LABEL);
     setTextContent("purchase-analytics-delivered", deliveredPurchases ? String(deliveredPurchases) : EMPTY_LABEL);
@@ -1197,13 +1230,10 @@ function bindPurchaseActions(userId) {
             description: `Purchase "${data.product_name}" was updated to ${data.purchase_status.replaceAll("_", " ")}.`
         });
 
-        const [buyerProfile, purchases] = await Promise.all([
-            fetchBuyerProfile(userId),
-            fetchPurchases(userId)
-        ]);
+        const purchases = await fetchPurchases(userId);
 
         renderPurchaseList(purchases);
-        renderUserBuyerAnalytics(buyerProfile, purchases);
+        renderUserPurchaseAnalytics(purchases);
     });
 }
 
@@ -1238,6 +1268,11 @@ function initAuthUi() {
             message.textContent = "";
         });
 
+        document.querySelectorAll(".auth-form .status-banner").forEach((message) => {
+            message.textContent = "";
+            message.className = "status-banner";
+        });
+
         document.querySelectorAll("input").forEach((input) => {
             input.classList.remove("error");
         });
@@ -1247,6 +1282,20 @@ function initAuthUi() {
         const errorElement = document.getElementById(elementId);
         if (errorElement) {
             errorElement.textContent = message;
+        }
+    }
+
+    function showStatusMessage(elementId, message, type = "") {
+        const statusElement = document.getElementById(elementId);
+        if (!statusElement) {
+            return;
+        }
+
+        statusElement.textContent = message || "";
+        statusElement.className = "status-banner";
+
+        if (type) {
+            statusElement.classList.add(type);
         }
     }
 
@@ -1438,6 +1487,7 @@ function initAuthUi() {
         validateLoginForm,
         validateSignupForm,
         showErrorMessage,
+        showStatusMessage,
         showLoginForm,
         showSignupForm
     };
@@ -1462,7 +1512,34 @@ async function initAuthPage() {
         return;
     }
 
-    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+    function hasAuthCallbackParams() {
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+        return (
+            hashParams.has("access_token") ||
+            hashParams.has("refresh_token") ||
+            searchParams.has("code") ||
+            (searchParams.has("token_hash") && searchParams.has("type"))
+        );
+    }
+
+    let isRedirectingToWorkspace = false;
+
+    async function redirectAuthenticatedUser(userOrProfile) {
+        if (!userOrProfile || isRedirectingToWorkspace) {
+            return;
+        }
+
+        isRedirectingToWorkspace = true;
+
+        const redirectProfile =
+            (userOrProfile.id ? await syncProfileFromUser(userOrProfile) : userOrProfile) ||
+            (userOrProfile.id ? await fetchCurrentProfile(userOrProfile.id) : null) ||
+            (userOrProfile.id ? getBaseProfileFromUser(userOrProfile) : userOrProfile);
+
+        window.location.replace(getUserPageUrl(redirectProfile));
+    }
 
     let existingSession = null;
     try {
@@ -1471,16 +1548,18 @@ async function initAuthPage() {
         existingSession = null;
     }
 
-    if (existingSession?.user) {
-        await syncProfileFromUser(existingSession.user);
-    }
-
-    if (existingSession && !requestedMode) {
-        const redirectProfile =
-            (await fetchCurrentProfile(existingSession.user.id)) || getBaseProfileFromUser(existingSession.user);
-        window.location.href = getUserPageUrl(redirectProfile);
+    if (existingSession?.user && hasAuthCallbackParams()) {
+        await redirectAuthenticatedUser(existingSession.user);
         return;
     }
+
+    supabaseClient.auth.onAuthStateChange(async (event, nextSession) => {
+        if (event !== "SIGNED_IN" || !nextSession?.user) {
+            return;
+        }
+
+        await redirectAuthenticatedUser(nextSession.user);
+    });
 
     authUi.loginForm.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -1511,15 +1590,8 @@ async function initAuthPage() {
             return;
         }
 
-        if (data.user) {
-            await syncProfileFromUser(data.user);
-        }
-
-        showAlert("Login successful! Redirecting to your workspace...");
-        setTimeout(() => {
-            authUi.loginForm.reset();
-            window.location.href = getUserPageUrl(data.user);
-        }, 1200);
+        authUi.loginForm.reset();
+        await redirectAuthenticatedUser(data.user);
     });
 
     authUi.signupForm.addEventListener("submit", async (event) => {
@@ -1543,6 +1615,13 @@ async function initAuthPage() {
             email,
             password,
             options: {
+                emailRedirectTo: getAbsoluteUserPageUrl({
+                    email,
+                    username,
+                    user_metadata: {
+                        username
+                    }
+                }),
                 data: {
                     full_name: fullName,
                     username
@@ -1566,18 +1645,18 @@ async function initAuthPage() {
         cacheLoginAlias(username, email);
 
         if (data.session && data.user) {
-            await syncProfileFromUser(data.user);
-            showAlert("Account created successfully! Opening your workspace...");
-            setTimeout(() => {
-                authUi.signupForm.reset();
-                window.location.href = getUserPageUrl(data.user);
-            }, 1200);
+            authUi.signupForm.reset();
+            await redirectAuthenticatedUser(data.user);
             return;
         }
 
-        showAlert("Account created. Confirm your email, then log in with your username or email and password.");
         authUi.signupForm.reset();
-        authUi.showLoginForm();
+        authUi.showSignupForm(false);
+        authUi.showStatusMessage(
+            "signup-status",
+            "Check your email to verify your account. After verification, you'll go straight to your workspace.",
+            "success"
+        );
     });
 }
 
@@ -1615,11 +1694,7 @@ async function ensurePortalSession() {
 async function initUserPage(session, initialProfile) {
     const { profile, historyList, snapshot } = await collectUserSnapshot(session.user.id, initialProfile);
     const displayProfile = getDisplayProfile(profile, session.user);
-    const [sellerProfile, buyerProfile, purchases] = await Promise.all([
-        fetchSellerProfile(session.user.id),
-        fetchBuyerProfile(session.user.id),
-        fetchPurchases(session.user.id)
-    ]);
+    const purchases = await fetchPurchases(session.user.id);
 
     await upsertAnalyticsSnapshot(session.user.id, snapshot);
 
@@ -1651,8 +1726,7 @@ async function initUserPage(session, initialProfile) {
     setMetric("metric-feedback", snapshot.positiveFeedbackTrend);
 
     renderHistoryList(historyList);
-    renderUserSellerAnalytics(sellerProfile);
-    renderUserBuyerAnalytics(buyerProfile, purchases);
+    renderUserPurchaseAnalytics(purchases);
     renderPurchaseList(purchases);
     bindPurchaseActions(session.user.id);
 }

@@ -7,7 +7,7 @@
     <title>VeriTrade - Seller Portal</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="javascript/app.js?v=20260428-2" defer></script>
+    <script src="javascript/app.js?v=20260429-2" defer></script>
 </head>
 <body class="portal-page">
     <!-- Navigation Bar -->
@@ -18,11 +18,11 @@
                 <span class="nav-logo-text">VeriTrade</span>
             </a>
             <ul class="nav-links-inside">
-                <li><a href="user.html" class="active">Admin</a></li>
-                <li><a href="seller.html">Seller</a></li>
+                <li><a href="user.html">Admin</a></li>
+                <li><a href="seller.html" class="active">Seller</a></li>
                 <li><a href="buyer.html">Buyer</a></li>
             </ul>
-            <button class="exit-btn" id="logout-btn"><a href="index.html">Log Out</a></button>
+            <a href="index.html" class="exit-btn" id="logout-btn" data-signout-link>Log Out</a>
         </div>
     </nav>
 
