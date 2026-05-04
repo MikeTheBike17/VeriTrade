@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - User Workspace</title>
-    <link rel="stylesheet" href="css/style.css?v=20260504-2">
+    <link rel="stylesheet" href="css/style.css?v=20260504-3">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="javascript/app.js?v=20260504-2" defer></script>
+    <script src="javascript/app.js?v=20260504-3" defer></script>
 </head>
 <body class="portal-page">
     <nav class="navbar">
@@ -92,39 +92,17 @@
                     </ul>
                 </article>
 
-                <article class="detail-card">
-                    <span class="card-kicker">Analytics</span>
-                    <h3>Verification signals</h3>
-                    <div class="metric-stack">
-                        <div class="metric-item">
-                            <div class="metric-row">
-                                <span>Profile completeness</span>
-                                <strong id="metric-profile-completion-value">none</strong>
-                            </div>
-                            <div class="metric-bar"><span class="metric-fill" id="metric-profile-completion-fill" style="width: 0%"></span></div>
-                        </div>
-                        <div class="metric-item">
-                            <div class="metric-row">
-                                <span>OTP confirmation success</span>
-                                <strong id="metric-otp-success-value">none</strong>
-                            </div>
-                            <div class="metric-bar"><span class="metric-fill" id="metric-otp-success-fill" style="width: 0%"></span></div>
-                        </div>
-                        <div class="metric-item">
-                            <div class="metric-row">
-                                <span>Matched seller detail rate</span>
-                                <strong id="metric-match-rate-value">none</strong>
-                            </div>
-                            <div class="metric-bar"><span class="metric-fill" id="metric-match-rate-fill" style="width: 0%"></span></div>
-                        </div>
-                        <div class="metric-item">
-                            <div class="metric-row">
-                                <span>Positive feedback trend</span>
-                                <strong id="metric-feedback-value">none</strong>
-                            </div>
-                            <div class="metric-bar"><span class="metric-fill" id="metric-feedback-fill" style="width: 0%"></span></div>
-                        </div>
-                    </div>
+                <article class="detail-card" id="purchase-analytics-card">
+                    <span class="card-kicker">Purchase analytics</span>
+                    <h3>Purchase outcomes</h3>
+                    <ul class="detail-list">
+                        <li><span>Total purchases</span><strong id="purchase-analytics-total">none</strong></li>
+                        <li><span>Delivered purchases</span><strong id="purchase-analytics-delivered">none</strong></li>
+                        <li><span>Not delivered purchases</span><strong id="purchase-analytics-not-delivered">none</strong></li>
+                        <li><span>Fraud reports submitted</span><strong id="purchase-analytics-fraud">none</strong></li>
+                        <li><span>Registered seller purchases</span><strong id="purchase-analytics-registered">none</strong></li>
+                        <li><span>Unregistered seller purchases</span><strong id="purchase-analytics-unregistered">none</strong></li>
+                    </ul>
                 </article>
 
                 <article class="detail-card">
@@ -152,6 +130,29 @@
                         <h4>none</h4>
                         <p>Your purchases will appear here after you save them from the Buyer page.</p>
                     </article>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="dashboard-details">
+        <div class="portal-container">
+            <article class="detail-card">
+                <span class="card-kicker">User search</span>
+                <h3>Search users on VeriTrade</h3>
+                <p class="form-note">Search by name, email, or phone number to find users with an account on this system.</p>
+                <div class="portal-form">
+                    <div class="form-group">
+                        <label for="user-search-input">Search users</label>
+                        <input type="text" id="user-search-input" placeholder="Enter a name, email, or phone number">
+                    </div>
+                    <p class="status-banner" id="user-search-status"></p>
+                    <div class="history-list" id="user-search-results">
+                        <article class="history-item empty-state">
+                            <h4>none</h4>
+                            <p>Search results will appear here after you enter a user name, email, or phone number.</p>
+                        </article>
+                    </div>
                 </div>
             </article>
         </div>
@@ -196,5 +197,22 @@
     <footer class="footer" id="contact">
         <p>VeriTrade. All rights reserved. | Trusted trading verification.</p>
     </footer>
+
+    <div class="user-search-modal" id="user-search-modal" hidden>
+        <div class="user-search-dialog" role="dialog" aria-modal="true" aria-labelledby="user-search-modal-title">
+            <div class="capture-dialog-header">
+                <div>
+                    <p class="section-label">User details</p>
+                    <h3 id="user-search-modal-title">VeriTrade account</h3>
+                </div>
+                <button type="button" class="capture-close-btn" id="user-search-modal-close" aria-label="Close user details">Close</button>
+            </div>
+            <ul class="detail-list user-search-detail-list">
+                <li><span>Name</span><strong id="user-search-modal-name">none</strong></li>
+                <li><span>Email</span><strong id="user-search-modal-email">none</strong></li>
+                <li><span>Phone number</span><strong id="user-search-modal-phone">none</strong></li>
+            </ul>
+        </div>
+    </div>
 </body>
 </html>

@@ -900,6 +900,32 @@ async function fetchPurchases(userId) {
     return Array.isArray(data) ? data : [];
 }
 
+async function searchSystemUsers(searchTerm) {
+    if (!supabaseClient || !searchTerm) {
+        return [];
+    }
+
+    const trimmedSearchTerm = searchTerm.trim();
+    if (!trimmedSearchTerm) {
+        return [];
+    }
+
+    const escapedSearchTerm = trimmedSearchTerm.replaceAll(",", "\\,");
+    const { data, error } = await supabaseClient
+        .from("profiles")
+        .select("id, full_name, auth_email, phone_number")
+        .or(
+            `full_name.ilike.%${escapedSearchTerm}%,auth_email.ilike.%${escapedSearchTerm}%,phone_number.ilike.%${escapedSearchTerm}%`
+        )
+        .limit(8);
+
+    if (error || !Array.isArray(data)) {
+        return [];
+    }
+
+    return data;
+}
+
 async function uploadSellerVerificationFile(userId, category, file) {
     if (!supabaseClient || !userId || !file) {
         return null;
@@ -1761,6 +1787,114 @@ function initPortalNav() {
     });
 }
 
+function initUserSearch() {
+    const searchInput = document.getElementById("user-search-input");
+    const resultsContainer = document.getElementById("user-search-results");
+    const statusElement = document.getElementById("user-search-status");
+    const modal = document.getElementById("user-search-modal");
+    const closeButton = document.getElementById("user-search-modal-close");
+
+    if (!searchInput || !resultsContainer || !statusElement || !modal || !closeButton) {
+        return;
+    }
+
+    let searchTimeoutId = null;
+    let activeRequestId = 0;
+
+    function renderEmptyState(message) {
+        resultsContainer.innerHTML = `
+            <article class="history-item empty-state">
+                <h4>${EMPTY_LABEL}</h4>
+                <p>${escapeHtml(message)}</p>
+            </article>
+        `;
+    }
+
+    function closeModal() {
+        modal.hidden = true;
+    }
+
+    function openModal(userProfile) {
+        setTextContent("user-search-modal-name", userProfile?.full_name || EMPTY_LABEL);
+        setTextContent("user-search-modal-email", userProfile?.auth_email || EMPTY_LABEL);
+        setTextContent("user-search-modal-phone", userProfile?.phone_number || EMPTY_LABEL);
+        modal.hidden = false;
+    }
+
+    function renderResults(users) {
+        if (!users.length) {
+            renderEmptyState("No users matched that name, email, or phone number.");
+            return;
+        }
+
+        resultsContainer.innerHTML = users
+            .map(
+                (userProfile, index) => `
+                    <button
+                        type="button"
+                        class="user-search-result-btn"
+                        data-user-search-index="${index}"
+                    >
+                        <h4>${escapeHtml(userProfile.full_name || EMPTY_LABEL)}</h4>
+                        <p>${escapeHtml(userProfile.auth_email || EMPTY_LABEL)}</p>
+                        <p>${escapeHtml(userProfile.phone_number || EMPTY_LABEL)}</p>
+                    </button>
+                `
+            )
+            .join("");
+
+        resultsContainer.querySelectorAll("[data-user-search-index]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const index = Number(button.getAttribute("data-user-search-index"));
+                openModal(users[index]);
+            });
+        });
+    }
+
+    async function runSearch() {
+        const searchTerm = searchInput.value.trim();
+        const requestId = ++activeRequestId;
+
+        if (!searchTerm) {
+            statusElement.textContent = "";
+            renderEmptyState("Search results will appear here after you enter a user name, email, or phone number.");
+            return;
+        }
+
+        statusElement.textContent = "Searching users...";
+        const users = await searchSystemUsers(searchTerm);
+
+        if (requestId !== activeRequestId) {
+            return;
+        }
+
+        statusElement.textContent = users.length
+            ? `${users.length} user${users.length === 1 ? "" : "s"} found.`
+            : "No matching users found.";
+        renderResults(users);
+    }
+
+    searchInput.addEventListener("input", () => {
+        if (searchTimeoutId) {
+            window.clearTimeout(searchTimeoutId);
+        }
+
+        searchTimeoutId = window.setTimeout(() => {
+            runSearch().catch(() => {
+                statusElement.textContent = "We could not search users right now.";
+                renderEmptyState("Try your search again in a moment.");
+            });
+        }, 250);
+    });
+
+    closeButton.addEventListener("click", closeModal);
+    modal.addEventListener("click", (event) => {
+        if (event.target === modal) {
+            closeModal();
+        }
+    });
+}
+
 function setInlineStatus(id, message, type = "") {
     const element = document.getElementById(id);
     if (!element) {
@@ -2321,6 +2455,7 @@ async function initUserPage(session, initialProfile) {
     }
     renderUserPurchaseAnalytics(purchases);
     renderPurchaseList(purchases);
+    initUserSearch();
     bindPurchaseActions(session.user.id);
 }
 
