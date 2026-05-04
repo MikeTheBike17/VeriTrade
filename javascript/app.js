@@ -7,6 +7,7 @@ const BUYER_STORAGE_BUCKET = "buyer-verification-records";
 const USER_REDIRECT_PAGE = "user.html";
 const USER_SLUG_PARAM = "slug";
 const LOGIN_ALIAS_STORAGE_KEY = "veritrade_login_aliases";
+const OTP_LENGTH = 6;
 
 const hasSupabaseConfig = Boolean(
     window.supabase &&
@@ -222,17 +223,14 @@ function parseMarketplaceList(value) {
     return [...new Set(values)];
 }
 
-function getProfileCompletion(profile) {
+function getProfileCompletion(profile, sellerProfile = null) {
     const checkpoints = [
         Boolean(profile?.full_name),
-        Boolean(profile?.username),
         Boolean(profile?.auth_email),
         Boolean(profile?.phone_number),
-        Boolean(profile?.business_name),
-        Boolean(profile?.social_handle_url),
-        Boolean(profile?.marketplace_profile_link),
         Array.isArray(profile?.linked_marketplaces) && profile.linked_marketplaces.length > 0,
-        profile?.otp_alerts !== null && profile?.otp_alerts !== undefined
+        profile?.otp_alerts === true,
+        Boolean(sellerProfile?.seller_verification_status)
     ];
 
     const completed = checkpoints.filter(Boolean).length;
@@ -258,13 +256,25 @@ function getDistinctSellerCount(checksList) {
     return sellerKeys.size;
 }
 
-function getOtpSuccessRate(checksList) {
+function getOtpSuccessRate(checksList, profile = null) {
     if (!checksList.length) {
-        return null;
+        return profile?.otp_alerts === true ? 100 : null;
     }
 
     const successfulChecks = checksList.filter((check) => check.otp_confirmed).length;
     return clampPercent((successfulChecks / checksList.length) * 100);
+}
+
+function formatOtpAlertLabel(profile) {
+    if (profile?.otp_alerts === true) {
+        return "Email and phone verified";
+    }
+
+    if (profile?.otp_alerts === false) {
+        return "Verification pending";
+    }
+
+    return EMPTY_LABEL;
 }
 
 function getAverageMatchRate(checksList) {
@@ -995,8 +1005,9 @@ async function upsertAnalyticsSnapshot(userId, snapshot) {
 }
 
 async function collectUserSnapshot(userId, profileOverride = null) {
-    const [profile, checksResponse, historyResponse] = await Promise.all([
+    const [profile, sellerProfile, checksResponse, historyResponse] = await Promise.all([
         profileOverride ? Promise.resolve(profileOverride) : fetchCurrentProfile(userId),
+        fetchSellerProfile(userId),
         supabaseClient.from("verification_checks").select("*").eq("user_id", userId),
         supabaseClient
             .from("user_history")
@@ -1021,8 +1032,8 @@ async function collectUserSnapshot(userId, profileOverride = null) {
     const snapshot = {
         trustChecksRun: checksList.length,
         sellersMonitored: getDistinctSellerCount(checksList),
-        profileCompletion: getProfileCompletion(resolvedProfile),
-        otpConfirmationSuccess: getOtpSuccessRate(checksList),
+        profileCompletion: getProfileCompletion(resolvedProfile, sellerProfile),
+        otpConfirmationSuccess: getOtpSuccessRate(checksList, resolvedProfile),
         matchedSellerDetailRate: getAverageMatchRate(checksList),
         positiveFeedbackTrend: getPositiveFeedbackTrend(allHistory),
         historyRecords: allHistory.length
@@ -1030,6 +1041,7 @@ async function collectUserSnapshot(userId, profileOverride = null) {
 
     return {
         profile: resolvedProfile,
+        sellerProfile,
         checksList,
         historyList,
         snapshot
@@ -1110,29 +1122,56 @@ async function findRegisteredSellerByContact(sellerEmail, sellerPhone) {
         return null;
     }
 
+    const candidateProfileIds = new Set();
+
     if (sellerEmail) {
         const { data } = await supabaseClient
-            .from("seller_profiles")
-            .select("user_id, full_name, email, phone, is_registered_seller, seller_trust_score, purchase_confidence_score")
-            .eq("email", sellerEmail)
-            .eq("is_registered_seller", true)
+            .from("profiles")
+            .select("id")
+            .eq("auth_email", sellerEmail)
             .maybeSingle();
 
-        if (data) {
-            return data;
+        if (data?.id) {
+            candidateProfileIds.add(data.id);
         }
     }
 
     if (sellerPhone) {
         const { data } = await supabaseClient
-            .from("seller_profiles")
-            .select("user_id, full_name, email, phone, is_registered_seller, seller_trust_score, purchase_confidence_score")
-            .eq("phone", sellerPhone)
-            .eq("is_registered_seller", true)
+            .from("profiles")
+            .select("id")
+            .eq("phone_number", sellerPhone)
             .maybeSingle();
 
-        if (data) {
-            return data;
+        if (data?.id) {
+            candidateProfileIds.add(data.id);
+        }
+    }
+
+    for (const profileId of candidateProfileIds) {
+        const [profileResponse, sellerResponse] = await Promise.all([
+            supabaseClient.from("profiles").select("id, full_name, auth_email, phone_number").eq("id", profileId).maybeSingle(),
+            supabaseClient
+                .from("seller_profiles")
+                .select("user_id, full_name, is_registered_seller, seller_trust_score, purchase_confidence_score")
+                .eq("user_id", profileId)
+                .eq("is_registered_seller", true)
+                .maybeSingle()
+        ]);
+
+        if (profileResponse.data && sellerResponse.data) {
+            return {
+                user_id: profileResponse.data.id,
+                full_name:
+                    sellerResponse.data.full_name ||
+                    profileResponse.data.full_name ||
+                    EMPTY_LABEL,
+                email: profileResponse.data.auth_email || EMPTY_LABEL,
+                phone: profileResponse.data.phone_number || EMPTY_LABEL,
+                is_registered_seller: sellerResponse.data.is_registered_seller,
+                seller_trust_score: sellerResponse.data.seller_trust_score,
+                purchase_confidence_score: sellerResponse.data.purchase_confidence_score
+            };
         }
     }
 
@@ -1691,8 +1730,531 @@ async function ensurePortalSession() {
     };
 }
 
+function setInlineStatus(id, message, type = "") {
+    const element = document.getElementById(id);
+    if (!element) {
+        return;
+    }
+
+    element.textContent = message || "";
+    element.className = "inline-status";
+
+    if (type) {
+        element.classList.add(`is-${type}`);
+    }
+}
+
+function normalizeOtpValue(value) {
+    return String(value || "")
+        .replace(/\D/g, "")
+        .slice(0, OTP_LENGTH);
+}
+
+function generateOtpCode() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function isOtpVerifiedForValue(otpRecord, value) {
+    return Boolean(
+        otpRecord &&
+            otpRecord.verified &&
+            normalizeText(otpRecord.sentTo) === normalizeText(value)
+    );
+}
+
+function getSellerCropOutputConfig(targetField) {
+    if (targetField === "id-photo") {
+        return {
+            aspectRatio: 1.586,
+            width: 1200,
+            height: 757,
+            title: "Crop your ID photo",
+            note: "Position the full ID inside the crop frame with all details visible."
+        };
+    }
+
+    return {
+        aspectRatio: 1,
+        width: 1080,
+        height: 1080,
+        title: "Crop your selfie",
+        note: "Center your face inside the crop frame before saving the image."
+    };
+}
+
+function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+
+        image.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(image);
+        };
+
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("We could not read that image."));
+        };
+
+        image.src = objectUrl;
+    });
+}
+
+function createFileFromCanvas(canvas, fileName) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(
+            (blob) => {
+                if (!blob) {
+                    reject(new Error("We could not prepare the cropped image."));
+                    return;
+                }
+
+                resolve(new File([blob], fileName, { type: "image/jpeg" }));
+            },
+            "image/jpeg",
+            0.92
+        );
+    });
+}
+
+function getSellerImageComparisonHook() {
+    if (typeof window.compareSellerVerificationImages === "function") {
+        return window.compareSellerVerificationImages;
+    }
+
+    if (typeof window.veriTradeCompareSellerImages === "function") {
+        return window.veriTradeCompareSellerImages;
+    }
+
+    return null;
+}
+
+async function evaluateSellerVerificationMatch(payload) {
+    const comparisonHook = getSellerImageComparisonHook();
+
+    if (!comparisonHook) {
+        return {
+            matched: null,
+            status: "Pending ID and selfie match",
+            trustScore: 0,
+            isRegisteredSeller: false,
+            purchaseConfidenceScore: 0,
+            message: "Awaiting selfie and ID image comparison API."
+        };
+    }
+
+    try {
+        const comparisonResult = await comparisonHook(payload);
+        const matched =
+            comparisonResult === true ||
+            comparisonResult?.matched === true ||
+            comparisonResult?.isMatch === true;
+
+        if (matched) {
+            return {
+                matched: true,
+                status: "Verified",
+                trustScore: 100,
+                isRegisteredSeller: true,
+                purchaseConfidenceScore: 100,
+                message: "Selfie and ID image match confirmed."
+            };
+        }
+
+        return {
+            matched: false,
+            status: "ID and selfie did not match",
+            trustScore: 0,
+            isRegisteredSeller: false,
+            purchaseConfidenceScore: 0,
+            message: "The comparison API reported that the images did not match."
+        };
+    } catch (error) {
+        return {
+            matched: null,
+            status: "Pending ID and selfie match",
+            trustScore: 0,
+            isRegisteredSeller: false,
+            purchaseConfidenceScore: 0,
+            message: error?.message || "Awaiting selfie and ID image comparison API."
+        };
+    }
+}
+
+function createSellerImageController(onStateChange) {
+    const modal = document.getElementById("seller-crop-modal");
+    const canvas = document.getElementById("seller-crop-canvas");
+    const titleElement = document.getElementById("seller-crop-modal-title");
+    const noteElement = document.getElementById("seller-crop-modal-note");
+    const cancelButton = document.getElementById("seller-crop-cancel");
+    const uploadButton = document.getElementById("seller-crop-upload");
+    const cameraButton = document.getElementById("seller-crop-camera");
+    const resetButton = document.getElementById("seller-crop-reset");
+    const saveButton = document.getElementById("seller-crop-save");
+
+    if (!modal || !canvas || !titleElement || !noteElement || !cancelButton || !uploadButton || !cameraButton || !resetButton || !saveButton) {
+        return {
+            getFile() {
+                return null;
+            },
+            openModalForTarget() {
+                return;
+            }
+        };
+    }
+
+    const context = canvas.getContext("2d");
+    const state = {
+        activeField: null,
+        image: null,
+        sourceFile: null,
+        aspectRatio: 1,
+        outputWidth: 1080,
+        outputHeight: 1080,
+        baseScale: 1,
+        offsetX: 0,
+        offsetY: 0,
+        dragPointerId: null,
+        dragLastX: 0,
+        dragLastY: 0,
+        selectedFiles: {
+            selfie: null,
+            "id-photo": null
+        },
+        previewUrls: {
+            selfie: null,
+            "id-photo": null
+        }
+    };
+
+    function getPreviewElements(targetField) {
+        return {
+            thumb: document.getElementById(`seller-${targetField}-preview-thumb`),
+            name: document.getElementById(`seller-${targetField}-file-name`),
+            note: document.getElementById(`seller-${targetField}-preview-note`)
+        };
+    }
+
+    function updatePreview(targetField, file) {
+        const preview = getPreviewElements(targetField);
+        if (!preview.thumb || !preview.name || !preview.note) {
+            return;
+        }
+
+        const previewCard = document.getElementById(`seller-${targetField}-preview-card`);
+
+        if (state.previewUrls[targetField]) {
+            URL.revokeObjectURL(state.previewUrls[targetField]);
+            state.previewUrls[targetField] = null;
+        }
+
+        if (!file) {
+            if (previewCard) {
+                previewCard.hidden = true;
+            }
+            preview.thumb.style.backgroundImage = "";
+            preview.thumb.classList.add("is-empty");
+            preview.name.textContent =
+                targetField === "selfie" ? "No selfie selected" : "No ID photo selected";
+            preview.note.textContent =
+                targetField === "selfie"
+                    ? "A cropped selfie preview will appear here."
+                    : "A cropped ID preview will appear here.";
+            return;
+        }
+
+        const previewUrl = URL.createObjectURL(file);
+        state.previewUrls[targetField] = previewUrl;
+        if (previewCard) {
+            previewCard.hidden = false;
+        }
+        preview.thumb.style.backgroundImage = `url("${previewUrl}")`;
+        preview.thumb.classList.remove("is-empty");
+        preview.name.textContent = file.name;
+        preview.note.textContent = "Cropped image ready for submission.";
+    }
+
+    function getCropFrame() {
+        const padding = 42;
+        const maxWidth = canvas.width - padding * 2;
+        const maxHeight = canvas.height - padding * 2;
+        let frameWidth = maxWidth;
+        let frameHeight = frameWidth / state.aspectRatio;
+
+        if (frameHeight > maxHeight) {
+            frameHeight = maxHeight;
+            frameWidth = frameHeight * state.aspectRatio;
+        }
+
+        return {
+            width: frameWidth,
+            height: frameHeight,
+            x: (canvas.width - frameWidth) / 2,
+            y: (canvas.height - frameHeight) / 2
+        };
+    }
+
+    function constrainOffsets() {
+        if (!state.image) {
+            return;
+        }
+
+        const frame = getCropFrame();
+        const scaledWidth = state.image.width * state.baseScale;
+        const scaledHeight = state.image.height * state.baseScale;
+        const maxOffsetX = Math.max(0, (scaledWidth - frame.width) / 2);
+        const maxOffsetY = Math.max(0, (scaledHeight - frame.height) / 2);
+
+        state.offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, state.offsetX));
+        state.offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, state.offsetY));
+    }
+
+    function drawCropCanvas() {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "#0b1e31";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (!state.image) {
+            context.fillStyle = "rgba(255, 255, 255, 0.85)";
+            context.font = "600 22px Segoe UI";
+            context.textAlign = "center";
+            context.fillText("Choose an image to start cropping.", canvas.width / 2, canvas.height / 2);
+            return;
+        }
+
+        const frame = getCropFrame();
+        const scaledWidth = state.image.width * state.baseScale;
+        const scaledHeight = state.image.height * state.baseScale;
+        const drawX = canvas.width / 2 - scaledWidth / 2 + state.offsetX;
+        const drawY = canvas.height / 2 - scaledHeight / 2 + state.offsetY;
+
+        context.drawImage(state.image, drawX, drawY, scaledWidth, scaledHeight);
+
+        context.fillStyle = "rgba(5, 18, 33, 0.62)";
+        context.fillRect(0, 0, canvas.width, frame.y);
+        context.fillRect(0, frame.y, frame.x, frame.height);
+        context.fillRect(frame.x + frame.width, frame.y, canvas.width - (frame.x + frame.width), frame.height);
+        context.fillRect(0, frame.y + frame.height, canvas.width, canvas.height - (frame.y + frame.height));
+
+        context.strokeStyle = "#7FE4D4";
+        context.lineWidth = 3;
+        context.strokeRect(frame.x, frame.y, frame.width, frame.height);
+
+        context.strokeStyle = "rgba(255, 255, 255, 0.45)";
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(frame.x + frame.width / 3, frame.y);
+        context.lineTo(frame.x + frame.width / 3, frame.y + frame.height);
+        context.moveTo(frame.x + (frame.width / 3) * 2, frame.y);
+        context.lineTo(frame.x + (frame.width / 3) * 2, frame.y + frame.height);
+        context.moveTo(frame.x, frame.y + frame.height / 3);
+        context.lineTo(frame.x + frame.width, frame.y + frame.height / 3);
+        context.moveTo(frame.x, frame.y + (frame.height / 3) * 2);
+        context.lineTo(frame.x + frame.width, frame.y + (frame.height / 3) * 2);
+        context.stroke();
+    }
+
+    function resetCropPosition() {
+        if (!state.image) {
+            return;
+        }
+
+        const frame = getCropFrame();
+        state.baseScale = Math.max(frame.width / state.image.width, frame.height / state.image.height);
+        state.offsetX = 0;
+        state.offsetY = 0;
+        constrainOffsets();
+        drawCropCanvas();
+    }
+
+    function closeModal() {
+        modal.hidden = true;
+        state.image = null;
+        state.sourceFile = null;
+        state.dragPointerId = null;
+        drawCropCanvas();
+    }
+
+    function openModalForTarget(targetField) {
+        const cropConfig = getSellerCropOutputConfig(targetField);
+        state.activeField = targetField;
+        state.aspectRatio = cropConfig.aspectRatio;
+        state.outputWidth = cropConfig.width;
+        state.outputHeight = cropConfig.height;
+        titleElement.textContent = cropConfig.title;
+        noteElement.textContent = cropConfig.note;
+        modal.hidden = false;
+        state.image = null;
+        state.sourceFile = null;
+        state.offsetX = 0;
+        state.offsetY = 0;
+        drawCropCanvas();
+    }
+
+    async function openModalForFile(file, targetField) {
+        openModalForTarget(targetField);
+        state.image = await loadImageFromFile(file);
+        state.sourceFile = file;
+        resetCropPosition();
+    }
+
+    async function handleInputFile(file, targetField) {
+        if (!file) {
+            return;
+        }
+
+        try {
+            await openModalForFile(file, targetField);
+        } catch (error) {
+            showAlert(error.message || "We could not load that image.");
+        }
+    }
+
+    async function saveCropSelection() {
+        if (!state.image || !state.activeField) {
+            return;
+        }
+
+        const frame = getCropFrame();
+        const scaledWidth = state.image.width * state.baseScale;
+        const scaledHeight = state.image.height * state.baseScale;
+        const drawX = canvas.width / 2 - scaledWidth / 2 + state.offsetX;
+        const drawY = canvas.height / 2 - scaledHeight / 2 + state.offsetY;
+        const sourceX = (frame.x - drawX) / state.baseScale;
+        const sourceY = (frame.y - drawY) / state.baseScale;
+        const sourceWidth = frame.width / state.baseScale;
+        const sourceHeight = frame.height / state.baseScale;
+        const outputCanvas = document.createElement("canvas");
+
+        outputCanvas.width = state.outputWidth;
+        outputCanvas.height = state.outputHeight;
+
+        outputCanvas
+            .getContext("2d")
+            .drawImage(
+                state.image,
+                sourceX,
+                sourceY,
+                sourceWidth,
+                sourceHeight,
+                0,
+                0,
+                outputCanvas.width,
+                outputCanvas.height
+            );
+
+        const safeName = state.sourceFile?.name?.replace(/\.[^.]+$/, "") || state.activeField;
+        const croppedFile = await createFileFromCanvas(outputCanvas, `${safeName}-cropped.jpg`);
+
+        state.selectedFiles[state.activeField] = croppedFile;
+        updatePreview(state.activeField, croppedFile);
+        closeModal();
+
+        if (typeof onStateChange === "function") {
+            onStateChange();
+        }
+    }
+
+    canvas.addEventListener("pointerdown", (event) => {
+        if (!state.image) {
+            return;
+        }
+
+        state.dragPointerId = event.pointerId;
+        state.dragLastX = event.clientX;
+        state.dragLastY = event.clientY;
+        canvas.setPointerCapture(event.pointerId);
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+        if (state.dragPointerId !== event.pointerId || !state.image) {
+            return;
+        }
+
+        state.offsetX += event.clientX - state.dragLastX;
+        state.offsetY += event.clientY - state.dragLastY;
+        state.dragLastX = event.clientX;
+        state.dragLastY = event.clientY;
+        constrainOffsets();
+        drawCropCanvas();
+    });
+
+    function stopDragging(event) {
+        if (state.dragPointerId !== event.pointerId) {
+            return;
+        }
+
+        canvas.releasePointerCapture(event.pointerId);
+        state.dragPointerId = null;
+    }
+
+    canvas.addEventListener("pointerup", stopDragging);
+    canvas.addEventListener("pointercancel", stopDragging);
+
+    cancelButton.addEventListener("click", closeModal);
+    uploadButton.addEventListener("click", () => {
+        if (!state.activeField) {
+            return;
+        }
+
+        const input = document.getElementById(`seller-${state.activeField}-upload`);
+        if (input) {
+            input.click();
+        }
+    });
+    cameraButton.addEventListener("click", () => {
+        if (!state.activeField) {
+            return;
+        }
+
+        const input = document.getElementById(`seller-${state.activeField}-camera`);
+        if (input) {
+            input.click();
+        }
+    });
+    resetButton.addEventListener("click", resetCropPosition);
+    saveButton.addEventListener("click", () => {
+        saveCropSelection().catch((error) => {
+            showAlert(error.message || "We could not save that cropped image.");
+        });
+    });
+
+    modal.addEventListener("click", (event) => {
+        if (event.target === modal) {
+            closeModal();
+        }
+    });
+
+    ["selfie", "id-photo"].forEach((targetField) => {
+        ["camera", "upload"].forEach((sourceType) => {
+            const input = document.getElementById(`seller-${targetField}-${sourceType}`);
+            if (!input) {
+                return;
+            }
+
+            input.addEventListener("change", async (event) => {
+                const selectedFile = event.target.files?.[0];
+                event.target.value = "";
+                await handleInputFile(selectedFile, targetField);
+            });
+        });
+
+        updatePreview(targetField, null);
+    });
+
+    drawCropCanvas();
+
+    return {
+        getFile(targetField) {
+            return state.selectedFiles[targetField] || null;
+        },
+        openModalForTarget
+    };
+}
+
 async function initUserPage(session, initialProfile) {
-    const { profile, historyList, snapshot } = await collectUserSnapshot(session.user.id, initialProfile);
+    const { profile, sellerProfile, historyList, snapshot } = await collectUserSnapshot(session.user.id, initialProfile);
     const displayProfile = getDisplayProfile(profile, session.user);
     const purchases = await fetchPurchases(session.user.id);
 
@@ -1711,13 +2273,10 @@ async function initUserPage(session, initialProfile) {
     setTextContent("profile-full-name", displayProfile.full_name || EMPTY_LABEL);
     setTextContent("profile-username", displayProfile.username || EMPTY_LABEL);
     setTextContent("profile-email", displayProfile.auth_email || EMPTY_LABEL);
-    setTextContent(
-        "profile-otp-alerts",
-        profile.otp_alerts === true ? "Enabled" : profile.otp_alerts === false ? "Disabled" : EMPTY_LABEL
-    );
+    setTextContent("profile-otp-alerts", formatOtpAlertLabel(profile));
     setTextContent(
         "profile-linked-marketplaces",
-        linkedMarketplaces.length ? `${linkedMarketplaces.length} profile${linkedMarketplaces.length === 1 ? "" : "s"}` : EMPTY_LABEL
+        linkedMarketplaces.length ? linkedMarketplaces.join(", ") : EMPTY_LABEL
     );
 
     setMetric("metric-profile-completion", snapshot.profileCompletion);
@@ -1726,6 +2285,9 @@ async function initUserPage(session, initialProfile) {
     setMetric("metric-feedback", snapshot.positiveFeedbackTrend);
 
     renderHistoryList(historyList);
+    if (sellerProfile) {
+        renderUserSellerAnalytics(sellerProfile);
+    }
     renderUserPurchaseAnalytics(purchases);
     renderPurchaseList(purchases);
     bindPurchaseActions(session.user.id);
@@ -1739,164 +2301,283 @@ async function initSellerPage(session, initialProfile) {
 
     const profile = initialProfile || getBaseProfileFromUser(session.user);
     const existingSellerProfile = await fetchSellerProfile(session.user.id);
-    const existingPlatformLinks =
-        existingSellerProfile?.platform_links && typeof existingSellerProfile.platform_links === "object"
-            ? existingSellerProfile.platform_links
-            : {};
-
-    document.getElementById("seller-full-name").value =
-        existingSellerProfile?.full_name || profile.full_name || session.user.user_metadata?.full_name || "";
-    document.getElementById("seller-email").value =
-        existingSellerProfile?.email || profile.auth_email || session.user.email || "";
-    document.getElementById("seller-phone").value =
-        existingSellerProfile?.phone || profile.phone_number || "";
-    document.getElementById("seller-id-number").value =
-        existingSellerProfile?.id_number || "";
-    document.getElementById("seller-location").value =
-        existingSellerProfile?.location || "";
-    document.getElementById("seller-student-number").value =
-        existingSellerProfile?.student_number || "";
-    document.getElementById("seller-institution").value =
-        existingSellerProfile?.institution || "";
-    document.getElementById("seller-verification-notes").value =
-        existingSellerProfile?.verification_notes || "";
-    document.getElementById("seller-platform-facebook").value =
-        existingPlatformLinks.facebook_marketplace || "";
-    document.getElementById("seller-platform-whatsapp").value =
-        existingPlatformLinks.whatsapp || "";
-    document.getElementById("seller-platform-instagram").value =
-        existingPlatformLinks.instagram || "";
-    document.getElementById("seller-platform-gumtree").value =
-        existingPlatformLinks.gumtree || "";
-    document.getElementById("seller-platform-other-name").value =
-        existingPlatformLinks.other_name || "";
-    document.getElementById("seller-platform-other-link").value =
-        existingPlatformLinks.other || "";
-
+    const fullNameInput = document.getElementById("seller-full-name");
+    const emailInput = document.getElementById("seller-email");
+    const phoneInput = document.getElementById("seller-phone");
+    const socialHandleInput = document.getElementById("seller-social-handle");
+    const emailOtpInput = document.getElementById("seller-email-otp");
+    const phoneOtpInput = document.getElementById("seller-phone-otp");
+    const addressStreetInput = document.getElementById("seller-address-street");
+    const addressCityInput = document.getElementById("seller-address-city");
+    const addressProvinceInput = document.getElementById("seller-address-province");
+    const addressPostalCodeInput = document.getElementById("seller-address-postal-code");
+    const submitButton = document.getElementById("seller-submit-btn");
+    const emailOtpSendButton = document.getElementById("seller-email-otp-send");
+    const phoneOtpSendButton = document.getElementById("seller-phone-otp-send");
+    const selfieActivateButton = document.getElementById("seller-selfie-activate-btn");
+    const idActivateButton = document.getElementById("seller-id-photo-activate-btn");
     const selectedPlatforms = Array.isArray(existingSellerProfile?.selling_platforms)
         ? existingSellerProfile.selling_platforms
-        : [];
+        : Array.isArray(profile?.linked_marketplaces)
+            ? profile.linked_marketplaces
+            : [];
+    const otpState = {
+        email: {
+            code: null,
+            sentTo: profile.auth_email || existingSellerProfile?.email || session.user.email || "",
+            verified: profile.otp_alerts === true
+        },
+        phone: {
+            code: null,
+            sentTo: profile.phone_number || existingSellerProfile?.phone || "",
+            verified: profile.otp_alerts === true && Boolean(profile.phone_number || existingSellerProfile?.phone)
+        }
+    };
+    const imageController = createSellerImageController(updateSubmitState);
+
+    fullNameInput.value =
+        existingSellerProfile?.full_name || profile.full_name || session.user.user_metadata?.full_name || "";
+    emailInput.value = profile.auth_email || existingSellerProfile?.email || session.user.email || "";
+    phoneInput.value = profile.phone_number || existingSellerProfile?.phone || "";
+    socialHandleInput.value = "";
+    addressStreetInput.value = "";
+    addressCityInput.value = "";
+    addressProvinceInput.value = "";
+    addressPostalCodeInput.value = "";
+
+    if (otpState.email.verified) {
+        setInlineStatus("seller-email-otp-status", "Email already verified for OTP alerts.", "success");
+        emailOtpInput.value = "000000";
+        emailOtpSendButton.textContent = "Resend OTP";
+    }
+
+    if (otpState.phone.verified) {
+        setInlineStatus("seller-phone-otp-status", "Phone already verified for OTP alerts.", "success");
+        phoneOtpInput.value = "000000";
+        phoneOtpSendButton.textContent = "Resend OTP";
+    }
 
     document.querySelectorAll('input[name="seller-selling-platform"]').forEach((input) => {
         input.checked = selectedPlatforms.includes(input.value);
     });
 
-    document.getElementById("seller-agreement-accurate").checked =
-        existingSellerProfile?.agreement_flags?.accurate === true;
-    document.getElementById("seller-agreement-private").checked =
-        existingSellerProfile?.agreement_flags?.private_storage === true;
-    document.getElementById("seller-agreement-dispute").checked =
-        existingSellerProfile?.agreement_flags?.dispute_resolution === true;
-    document.getElementById("seller-agreement-products").checked =
-        existingSellerProfile?.agreement_flags?.product_rules === true;
-    document.getElementById("seller-agreement-rules").checked =
-        existingSellerProfile?.agreement_flags?.marketplace_rules === true;
-
     renderSellerStatusSummary(existingSellerProfile, session.user);
+
+    function sendOtp(type) {
+        const targetValue = type === "email" ? emailInput.value.trim().toLowerCase() : phoneInput.value.trim();
+        const label = type === "email" ? "email" : "phone";
+
+        if (!targetValue) {
+            setInlineStatus(
+                type === "email" ? "seller-email-otp-status" : "seller-phone-otp-status",
+                `Enter your ${label} first so we know where to send the OTP.`,
+                "error"
+            );
+            return;
+        }
+
+        otpState[type].code = generateOtpCode();
+        otpState[type].sentTo = targetValue;
+        otpState[type].verified = false;
+        setInlineStatus(
+            type === "email" ? "seller-email-otp-status" : "seller-phone-otp-status",
+            `OTP sent to your ${label}. Enter the 6-digit code to verify it.`,
+            "success"
+        );
+
+        if (type === "email") {
+            emailOtpSendButton.textContent = "Resend OTP";
+        } else {
+            phoneOtpSendButton.textContent = "Resend OTP";
+        }
+
+        showAlert(`Demo ${label} OTP: ${otpState[type].code}`);
+        updateSubmitState();
+    }
+
+    function validateOtpField(type, showErrors = false) {
+        const otpInput = type === "email" ? emailOtpInput : phoneOtpInput;
+        const targetValue = type === "email" ? emailInput.value.trim().toLowerCase() : phoneInput.value.trim();
+        const statusId = type === "email" ? "seller-email-otp-status" : "seller-phone-otp-status";
+        const enteredCode = normalizeOtpValue(otpInput.value);
+
+        otpInput.value = enteredCode;
+
+        if (isOtpVerifiedForValue(otpState[type], targetValue)) {
+            setInlineStatus(statusId, `${type === "email" ? "Email" : "Phone"} OTP verified.`, "success");
+            return true;
+        }
+
+        if (!otpState[type].code || normalizeText(otpState[type].sentTo) !== normalizeText(targetValue)) {
+            otpState[type].verified = false;
+            if (showErrors) {
+                setInlineStatus(statusId, `Send an OTP to verify your ${type}.`, "error");
+            }
+            return false;
+        }
+
+        if (enteredCode.length !== OTP_LENGTH) {
+            otpState[type].verified = false;
+            if (showErrors) {
+                setInlineStatus(statusId, `Enter the full ${OTP_LENGTH}-digit OTP.`, "error");
+            }
+            return false;
+        }
+
+        if (enteredCode === otpState[type].code) {
+            otpState[type].verified = true;
+            setInlineStatus(statusId, `${type === "email" ? "Email" : "Phone"} OTP verified.`, "success");
+            return true;
+        }
+
+        otpState[type].verified = false;
+        if (showErrors) {
+            setInlineStatus(statusId, "That OTP code does not match. Use resend and try again.", "error");
+        }
+
+        return false;
+    }
+
+    function resetOtpVerification(type, message) {
+        otpState[type].verified = false;
+        otpState[type].code = null;
+        otpState[type].sentTo = type === "email" ? emailInput.value.trim().toLowerCase() : phoneInput.value.trim();
+        const otpInput = type === "email" ? emailOtpInput : phoneOtpInput;
+        otpInput.value = "";
+        setInlineStatus(type === "email" ? "seller-email-otp-status" : "seller-phone-otp-status", message);
+    }
+
+    function getSellerAddressValue() {
+        const street = addressStreetInput.value.trim();
+        const city = addressCityInput.value.trim();
+        const province = addressProvinceInput.value.trim();
+        const postalCode = addressPostalCodeInput.value.trim();
+
+        return {
+            street,
+            city,
+            province,
+            postalCode,
+            formatted: [street, city, province, postalCode].filter(Boolean).join(", ")
+        };
+    }
+
+    function isFormReady() {
+        const fullName = fullNameInput.value.trim();
+        const email = emailInput.value.trim().toLowerCase();
+        const phone = phoneInput.value.trim();
+        const address = getSellerAddressValue();
+        const marketplaces = getCheckedValues("seller-selling-platform");
+
+        return Boolean(
+            fullName &&
+                email &&
+                phone &&
+                address.street &&
+                address.city &&
+                address.province &&
+                address.postalCode &&
+                marketplaces.length > 0 &&
+                validateOtpField("email") &&
+                validateOtpField("phone") &&
+                imageController.getFile("selfie") &&
+                imageController.getFile("id-photo")
+        );
+    }
+
+    function updateSubmitState() {
+        if (submitButton) {
+            submitButton.disabled = !isFormReady();
+        }
+    }
+
+    emailOtpSendButton.addEventListener("click", () => sendOtp("email"));
+    phoneOtpSendButton.addEventListener("click", () => sendOtp("phone"));
+    emailOtpInput.addEventListener("input", () => {
+        validateOtpField("email");
+        updateSubmitState();
+    });
+    phoneOtpInput.addEventListener("input", () => {
+        validateOtpField("phone");
+        updateSubmitState();
+    });
+    phoneInput.addEventListener("input", () => {
+        resetOtpVerification("phone", "Phone number changed. Send a new OTP to verify it.");
+        updateSubmitState();
+    });
+    addressPostalCodeInput.addEventListener("input", () => {
+        addressPostalCodeInput.value = addressPostalCodeInput.value.replace(/\D/g, "").slice(0, 4);
+        updateSubmitState();
+    });
+
+    [
+        fullNameInput,
+        emailInput,
+        socialHandleInput,
+        addressStreetInput,
+        addressCityInput,
+        addressProvinceInput
+    ].forEach((input) => {
+        input.addEventListener("input", updateSubmitState);
+    });
+    addressProvinceInput.addEventListener("change", updateSubmitState);
+    document.querySelectorAll('input[name="seller-selling-platform"]').forEach((input) => {
+        input.addEventListener("change", updateSubmitState);
+    });
+    if (selfieActivateButton) {
+        selfieActivateButton.addEventListener("click", () => {
+            imageController.openModalForTarget("selfie");
+        });
+    }
+
+    if (idActivateButton) {
+        idActivateButton.addEventListener("click", () => {
+            imageController.openModalForTarget("id-photo");
+        });
+    }
+
+    updateSubmitState();
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
 
-        const fullName = document.getElementById("seller-full-name").value.trim();
-        const email = session.user.email || document.getElementById("seller-email").value.trim().toLowerCase();
-        const phone = document.getElementById("seller-phone").value.trim();
-        const idNumber = document.getElementById("seller-id-number").value.trim();
-        const location = document.getElementById("seller-location").value.trim();
-        const studentNumber = document.getElementById("seller-student-number").value.trim();
-        const institution = document.getElementById("seller-institution").value.trim();
-        const verificationNotes = document.getElementById("seller-verification-notes").value.trim();
+        const fullName = fullNameInput.value.trim();
+        const email = emailInput.value.trim().toLowerCase();
+        const phone = phoneInput.value.trim();
+        const socialHandle = socialHandleInput.value.trim();
+        const address = getSellerAddressValue();
         const sellingPlatforms = getCheckedValues("seller-selling-platform");
-        const platformLinks = {
-            facebook_marketplace: document.getElementById("seller-platform-facebook").value.trim(),
-            whatsapp: document.getElementById("seller-platform-whatsapp").value.trim(),
-            instagram: document.getElementById("seller-platform-instagram").value.trim(),
-            gumtree: document.getElementById("seller-platform-gumtree").value.trim(),
-            other_name: document.getElementById("seller-platform-other-name").value.trim(),
-            other: document.getElementById("seller-platform-other-link").value.trim()
-        };
-        const agreementFlags = {
-            accurate: document.getElementById("seller-agreement-accurate").checked,
-            private_storage: document.getElementById("seller-agreement-private").checked,
-            dispute_resolution: document.getElementById("seller-agreement-dispute").checked,
-            product_rules: document.getElementById("seller-agreement-products").checked,
-            marketplace_rules: document.getElementById("seller-agreement-rules").checked
-        };
+        const selfieFile = imageController.getFile("selfie");
+        const idPhotoFile = imageController.getFile("id-photo");
+        const requiredSellerInfoComplete =
+            [fullName, email, phone, address.street, address.city, address.province, address.postalCode].every(Boolean) &&
+            sellingPlatforms.length > 0;
+        const otpReady = validateOtpField("email", true) && validateOtpField("phone", true);
+        const imagesReady = Boolean(selfieFile && idPhotoFile);
 
-        const requiredSellerInfoComplete = [fullName, email, phone, idNumber, location].every(Boolean);
-        const allAgreementsAccepted = Object.values(agreementFlags).every(Boolean);
-
-        if (!requiredSellerInfoComplete) {
+        if (!requiredSellerInfoComplete || !otpReady || !imagesReady) {
             setStatusMessage(
                 "seller-save-status",
-                "Complete all required seller information before submitting your profile.",
+                "Complete every required field, verify both OTPs, select a marketplace, and add both cropped images before submitting.",
                 "error"
             );
+            updateSubmitState();
             return;
         }
 
-        if (!sellingPlatforms.length) {
-            setStatusMessage(
-                "seller-save-status",
-                "Select at least one external selling platform.",
-                "error"
-            );
-            return;
-        }
+        setStatusMessage("seller-save-status", "Submitting seller profile...", "");
 
-        if (!allAgreementsAccepted) {
-            setStatusMessage(
-                "seller-save-status",
-                "Accept all seller agreement statements before submitting.",
-                "error"
-            );
-            return;
-        }
-
-        let verificationDocuments = existingSellerProfile?.verification_documents || {};
-
-        try {
-            const idDocumentFile = document.getElementById("seller-id-document").files?.[0];
-            const studentProofFile = document.getElementById("seller-student-proof").files?.[0];
-            const addressProofFile = document.getElementById("seller-address-proof").files?.[0];
-
-            if (idDocumentFile) {
-                verificationDocuments.id_document = await uploadSellerVerificationFile(
-                    session.user.id,
-                    "id-document",
-                    idDocumentFile
-                );
-            }
-
-            if (studentProofFile) {
-                verificationDocuments.student_registration = await uploadSellerVerificationFile(
-                    session.user.id,
-                    "student-registration",
-                    studentProofFile
-                );
-            }
-
-            if (addressProofFile) {
-                verificationDocuments.proof_of_address = await uploadSellerVerificationFile(
-                    session.user.id,
-                    "proof-of-address",
-                    addressProofFile
-                );
-            }
-        } catch (error) {
-            setStatusMessage(
-                "seller-save-status",
-                `Document upload failed: ${error.message}`,
-                "error"
-            );
-            return;
-        }
-
-        const documentCount = Object.values(verificationDocuments).filter(Boolean).length;
-        const sufficientRecordsSubmitted = requiredSellerInfoComplete && documentCount > 0;
-        const sellerVerificationStatus = requiredSellerInfoComplete ? "Pending Verification" : EMPTY_LABEL;
-        const sellerTrustScore = sufficientRecordsSubmitted ? 100 : 0;
-        const isRegisteredSeller = requiredSellerInfoComplete;
-        const purchaseConfidenceScore = isRegisteredSeller ? 100 : 0;
+        const verificationResult = await evaluateSellerVerificationMatch({
+            fullName,
+            email,
+            phone,
+            socialHandle,
+            address: address.formatted,
+            addressParts: address,
+            linkedMarketplaces: sellingPlatforms,
+            selfieFile,
+            idPhotoFile
+        });
 
         const updatedPublicProfile = {
             id: session.user.id,
@@ -1905,14 +2586,9 @@ async function initSellerPage(session, initialProfile) {
             auth_email: email,
             workspace_access: DEFAULT_WORKSPACE_ACCESS,
             phone_number: phone,
-            marketplace_profile_link:
-                platformLinks.facebook_marketplace ||
-                platformLinks.instagram ||
-                platformLinks.gumtree ||
-                platformLinks.whatsapp ||
-                platformLinks.other ||
-                null,
-            linked_marketplaces: sellingPlatforms
+            marketplace_profile_link: null,
+            linked_marketplaces: sellingPlatforms,
+            otp_alerts: true
         };
 
         const { data: publicProfileData, error: publicProfileError } = await supabaseClient
@@ -1931,19 +2607,19 @@ async function initSellerPage(session, initialProfile) {
             full_name: fullName,
             email,
             phone,
-            id_number: idNumber,
-            location,
-            student_number: studentNumber || null,
-            institution: institution || null,
+            id_number: null,
+            location: null,
+            student_number: null,
+            institution: null,
             selling_platforms: sellingPlatforms,
-            platform_links: platformLinks,
-            verification_notes: verificationNotes || null,
-            verification_documents: verificationDocuments,
-            agreement_flags: agreementFlags,
-            seller_verification_status: sellerVerificationStatus,
-            seller_trust_score: sellerTrustScore,
-            is_registered_seller: isRegisteredSeller,
-            purchase_confidence_score: purchaseConfidenceScore,
+            platform_links: null,
+            verification_notes: null,
+            verification_documents: null,
+            agreement_flags: null,
+            seller_verification_status: verificationResult.status,
+            seller_trust_score: verificationResult.trustScore,
+            is_registered_seller: verificationResult.isRegisteredSeller,
+            purchase_confidence_score: verificationResult.purchaseConfidenceScore,
             listed_products_count: existingSellerProfile?.listed_products_count || 0,
             completed_sales_count: existingSellerProfile?.completed_sales_count || 0
         };
@@ -1969,13 +2645,19 @@ async function initSellerPage(session, initialProfile) {
             userId: session.user.id,
             eventType: "profile",
             title: "Seller profile submitted",
-            description: "Your seller verification details were saved for admin verification and dispute handling."
+            description: verificationResult.message
         });
 
         const { snapshot } = await collectUserSnapshot(session.user.id, savedPublicProfile);
         await upsertAnalyticsSnapshot(session.user.id, snapshot);
 
-        setStatusMessage("seller-save-status", "Seller profile submitted successfully.", "success");
+        setStatusMessage(
+            "seller-save-status",
+            verificationResult.isRegisteredSeller
+                ? "Seller profile submitted successfully. Verification status: Verified."
+                : `Seller profile submitted successfully. Verification status: ${verificationResult.status}.`,
+            "success"
+        );
         window.setTimeout(() => {
             window.location.href = getUserPageUrl(savedPublicProfile);
         }, 1200);

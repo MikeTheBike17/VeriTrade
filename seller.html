@@ -5,12 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - Seller Portal</title>
-    <link rel="stylesheet" href="css/style.css?v=20260429-1">
+    <link rel="stylesheet" href="css/style.css?v=20260504-1">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="javascript/app.js?v=20260429-2" defer></script>
+    <script src="javascript/app.js?v=20260504-1" defer></script>
 </head>
 <body class="portal-page">
-    <!-- Navigation Bar -->
     <nav class="navbar">
         <div class="nav-container-inside">
             <a href="user.html" class="nav-logo">
@@ -26,191 +25,212 @@
         </div>
     </nav>
 
-    <!-- Hero Section -->
     <section class="portal-hero seller-hero">
         <div class="portal-hero-content">
             <h1>Seller Portal</h1>
-            <p>Build credibility and grow your business. Get verified, showcase your products, and reach verified buyers.</p>
+            <p>Complete one seller registration form to verify your profile, link your marketplaces, and prepare your ID and selfie check.</p>
         </div>
     </section>
 
     <section class="dashboard-details">
         <div class="portal-container">
-            <div class="dashboard-grid">
-                <article class="detail-card portal-form-card">
+            <div class="seller-single-column">
+                <article class="detail-card portal-form-card seller-registration-card">
                     <span class="card-kicker">Seller registration</span>
                     <h3>Register as a verified seller</h3>
-                    <p class="form-note">This form stores seller verification details for admin verification and dispute handling. Private records are saved securely and are not shown publicly on the site.</p>
+                    <p class="form-note">Complete every required field below. The submit button only becomes available once your required details, OTP confirmations, marketplace selection, selfie, and ID photo are all ready.</p>
                     <form id="seller-profile-form" class="portal-form">
-                        <div class="portal-form-grid">
-                            <div class="form-group portal-form-grid-wide">
-                                <label>1. Seller Personal Information</label>
-                                <p class="form-note">These details identify the seller account behind a trade and help with secure admin verification if a dispute is reported.</p>
-                            </div>
+                        <div class="portal-form-grid seller-registration-grid">
                             <div class="form-group">
-                                <label for="seller-full-name">Full Name</label>
+                                <label for="seller-full-name">Name</label>
                                 <input type="text" id="seller-full-name" placeholder="Enter your full name" required>
                             </div>
                             <div class="form-group">
-                                <label for="seller-email">Email Address</label>
-                                <input type="email" id="seller-email" readonly>
+                                <label for="seller-email">Email</label>
+                                <input type="email" id="seller-email" placeholder="Your account email" required readonly>
                             </div>
                             <div class="form-group">
                                 <label for="seller-phone">Phone Number</label>
                                 <input type="text" id="seller-phone" placeholder="Enter your phone number" required>
                             </div>
                             <div class="form-group">
-                                <label for="seller-id-number">South African ID Number</label>
-                                <input type="text" id="seller-id-number" placeholder="Enter your South African ID number" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-location">Physical Area / Location</label>
-                                <input type="text" id="seller-location" placeholder="Enter your area or suburb" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-student-number">Student Number</label>
-                                <input type="text" id="seller-student-number" placeholder="Optional student number">
-                            </div>
-                            <div class="form-group portal-form-grid-wide">
-                                <label for="seller-institution">Institution / Campus</label>
-                                <input type="text" id="seller-institution" placeholder="Optional institution or campus">
+                                <label for="seller-social-handle">Social Handle <span class="input-optional">(Optional)</span></label>
+                                <input type="text" id="seller-social-handle" placeholder="@username or profile handle">
                             </div>
 
                             <div class="form-group portal-form-grid-wide">
-                                <label>2. Seller Verification Records</label>
-                                <p class="form-note">Uploaded verification records remain private and are only intended for secure admin review and dispute resolution.</p>
+                                <label>Marketplace Profile</label>
+                                <p class="form-note">Select at least one C2C marketplace. You can choose multiple.</p>
+                                <div class="checkbox-grid seller-marketplace-grid">
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="Facebook Marketplace">
+                                        Facebook Marketplace
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="WhatsApp">
+                                        WhatsApp
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="Instagram">
+                                        Instagram
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="Gumtree">
+                                        Gumtree
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="Yaga">
+                                        Yaga
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="Bob Shop">
+                                        Bob Shop
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="eBay">
+                                        eBay
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="OLX">
+                                        OLX
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="OfferUp">
+                                        OfferUp
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="Poshmark">
+                                        Poshmark
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="Depop">
+                                        Depop
+                                    </label>
+                                    <label class="checkbox checkbox-chip">
+                                        <input type="checkbox" name="seller-selling-platform" value="Mercari">
+                                        Mercari
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="seller-email-otp">OTP for Email</label>
+                                <input type="text" id="seller-email-otp" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit email OTP" required>
+                                <button type="button" class="inline-action-btn" id="seller-email-otp-send">Send OTP</button>
+                                <p class="inline-status" id="seller-email-otp-status">Send a code to verify your email address.</p>
                             </div>
                             <div class="form-group">
-                                <label for="seller-id-document">Upload ID Document</label>
-                                <input type="file" id="seller-id-document" accept=".pdf,.png,.jpg,.jpeg">
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-student-proof">Upload Proof of Student Registration</label>
-                                <input type="file" id="seller-student-proof" accept=".pdf,.png,.jpg,.jpeg">
-                            </div>
-                            <div class="form-group portal-form-grid-wide">
-                                <label for="seller-address-proof">Upload Proof of Address</label>
-                                <input type="file" id="seller-address-proof" accept=".pdf,.png,.jpg,.jpeg">
-                            </div>
-                            <div class="form-group portal-form-grid-wide">
-                                <label for="seller-verification-notes">Additional Verification Notes</label>
-                                <textarea id="seller-verification-notes" rows="4" placeholder="Add any notes that may help admin verification, such as store context or how you usually trade."></textarea>
+                                <label for="seller-phone-otp">OTP for Phone</label>
+                                <input type="text" id="seller-phone-otp" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit phone OTP" required>
+                                <button type="button" class="inline-action-btn" id="seller-phone-otp-send">Send OTP</button>
+                                <p class="inline-status" id="seller-phone-otp-status">Send a code to verify your phone number.</p>
                             </div>
 
                             <div class="form-group portal-form-grid-wide">
-                                <label>3. Seller Platform Information</label>
-                                <p class="form-note">Select the external platforms you use and add the matching profile links or usernames below.</p>
-                            </div>
-                            <div class="form-group portal-form-grid-wide">
-                                <label>Where else does the seller sell products?</label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="seller-selling-platform" value="Facebook Marketplace">
-                                    Facebook Marketplace
-                                </label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="seller-selling-platform" value="WhatsApp">
-                                    WhatsApp
-                                </label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="seller-selling-platform" value="Instagram">
-                                    Instagram
-                                </label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="seller-selling-platform" value="Gumtree">
-                                    Gumtree
-                                </label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="seller-selling-platform" value="Other">
-                                    Other
-                                </label>
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-platform-facebook">Facebook Marketplace Profile</label>
-                                <input type="text" id="seller-platform-facebook" placeholder="Profile link or username">
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-platform-whatsapp">WhatsApp</label>
-                                <input type="text" id="seller-platform-whatsapp" placeholder="Phone number or wa.me link">
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-platform-instagram">Instagram</label>
-                                <input type="text" id="seller-platform-instagram" placeholder="@username or profile link">
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-platform-gumtree">Gumtree</label>
-                                <input type="text" id="seller-platform-gumtree" placeholder="Profile link or username">
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-platform-other-name">Other Platform Name</label>
-                                <input type="text" id="seller-platform-other-name" placeholder="Enter the platform name">
-                            </div>
-                            <div class="form-group">
-                                <label for="seller-platform-other-link">Other Platform Link or Username</label>
-                                <input type="text" id="seller-platform-other-link" placeholder="Enter the profile link or username">
+                                <label>Physical Address</label>
+                                <div class="address-grid">
+                                    <div class="form-group portal-form-grid-wide">
+                                        <label for="seller-address-street">Street</label>
+                                        <input type="text" id="seller-address-street" placeholder="Enter your street address" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="seller-address-city">City</label>
+                                        <input type="text" id="seller-address-city" placeholder="Enter your city" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="seller-address-province">Province</label>
+                                        <select id="seller-address-province" required>
+                                            <option value="">Select province</option>
+                                            <option value="Eastern Cape">Eastern Cape</option>
+                                            <option value="Free State">Free State</option>
+                                            <option value="Gauteng">Gauteng</option>
+                                            <option value="KwaZulu-Natal">KwaZulu-Natal</option>
+                                            <option value="Limpopo">Limpopo</option>
+                                            <option value="Mpumalanga">Mpumalanga</option>
+                                            <option value="Northern Cape">Northern Cape</option>
+                                            <option value="North West">North West</option>
+                                            <option value="Western Cape">Western Cape</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="seller-address-postal-code">Postal Code</label>
+                                        <input type="text" id="seller-address-postal-code" inputmode="numeric" maxlength="4" placeholder="Enter postal code" required>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="form-group portal-form-grid-wide">
-                                <label>4. Seller Agreement</label>
-                                <p class="form-note">These confirmations are required before the seller profile can be submitted.</p>
+                                <div class="upload-panel">
+                                    <div class="upload-panel-copy">
+                                        <label for="seller-selfie-upload">Selfie Upload</label>
+                                        <p class="form-note">The selfie upload only activates after you click the button below.</p>
+                                    </div>
+                                    <button type="button" class="inline-action-btn" id="seller-selfie-activate-btn">Upload Selfie Image</button>
+                                    <input type="file" id="seller-selfie-camera" accept="image/*" capture="user" hidden>
+                                    <input type="file" id="seller-selfie-upload" accept="image/*" hidden>
+                                    <div class="capture-preview-card" id="seller-selfie-preview-card" hidden>
+                                        <div class="capture-preview-thumb" id="seller-selfie-preview-thumb"></div>
+                                        <div class="capture-preview-copy">
+                                            <strong id="seller-selfie-file-name">No selfie selected</strong>
+                                            <p id="seller-selfie-preview-note">A cropped selfie preview will appear here.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <div class="upload-panel">
+                                    <div class="upload-panel-copy">
+                                        <label for="seller-id-photo-upload">ID Photo Upload</label>
+                                        <p class="form-note">Activate the ID upload when you are ready to add the document.</p>
+                                    </div>
+                                    <button type="button" class="inline-action-btn" id="seller-id-photo-activate-btn">Upload ID Photo</button>
+                                    <input type="file" id="seller-id-photo-camera" accept="image/*" capture="environment" hidden>
+                                    <input type="file" id="seller-id-photo-upload" accept="image/*" hidden>
+                                    <div class="capture-preview-card" id="seller-id-photo-preview-card" hidden>
+                                        <div class="capture-preview-thumb" id="seller-id-photo-preview-thumb"></div>
+                                        <div class="capture-preview-copy">
+                                            <strong id="seller-id-photo-file-name">No ID photo selected</strong>
+                                            <p id="seller-id-photo-preview-note">A cropped ID preview will appear here.</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="seller-agreement-accurate" required>
-                            I confirm that the information provided is true and accurate.
-                        </label>
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="seller-agreement-private" required>
-                            I understand that my private information will be stored securely for verification and dispute purposes.
-                        </label>
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="seller-agreement-dispute" required>
-                            I understand that if I scam or defraud another user, ReTrade may use my stored verification records to assist with dispute resolution.
-                        </label>
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="seller-agreement-products" required>
-                            I agree not to list fake, stolen, damaged, or misleading products.
-                        </label>
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="seller-agreement-rules" required>
-                            I agree to follow the ReTrade marketplace rules.
-                        </label>
-
-                        <button type="submit" class="submit-btn">Submit Seller Profile</button>
+                        <button type="submit" class="submit-btn" id="seller-submit-btn" disabled>Submit Seller Profile</button>
                         <p class="status-banner" id="seller-save-status"></p>
                     </form>
-                </article>
-
-                <article class="detail-card">
-                    <span class="card-kicker">Privacy and disputes</span>
-                    <h3>Private verification records stay private</h3>
-                    <ul class="workspace-list">
-                        <li>ID numbers, uploaded documents, and private records are not displayed publicly on the site.</li>
-                        <li>Verification data is intended for secure admin verification and dispute handling only.</li>
-                        <li>Buyers gain more confidence when a seller is marked as registered and verified.</li>
-                        <li>Only appropriate public-facing trust indicators should appear on purchase flows.</li>
-                    </ul>
-                </article>
-
-                <article class="detail-card">
-                    <span class="card-kicker">Verification status</span>
-                    <h3>Your current seller registration</h3>
-                    <ul class="detail-list">
-                        <li><span>Registered name</span><strong id="seller-status-name">none</strong></li>
-                        <li><span>Registered seller</span><strong id="seller-status-registered">none</strong></li>
-                        <li><span>Verification status</span><strong id="seller-status-verification">none</strong></li>
-                        <li><span>Seller trust score</span><strong id="seller-status-trust">none</strong></li>
-                        <li><span>Purchase confidence</span><strong id="seller-status-confidence">none</strong></li>
-                        <li><span>Verification records</span><strong id="seller-status-documents">none</strong></li>
-                        <li><span>Selling platforms</span><strong id="seller-status-platforms">none</strong></li>
-                    </ul>
                 </article>
             </div>
         </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="footer" id="contact">        
+    <div class="capture-modal" id="seller-crop-modal" hidden>
+        <div class="capture-dialog" role="dialog" aria-modal="true" aria-labelledby="seller-crop-modal-title">
+            <div class="capture-dialog-header">
+                <div>
+                    <p class="section-label">Image crop</p>
+                    <h3 id="seller-crop-modal-title">Adjust your image</h3>
+                </div>
+                <button type="button" class="capture-close-btn" id="seller-crop-cancel" aria-label="Close cropper">Close</button>
+            </div>
+            <p class="form-note capture-modal-note" id="seller-crop-modal-note">Upload or capture an image, then drag it into the crop frame.</p>
+            <div class="capture-dialog-toolbar">
+                <button type="button" class="inline-action-btn inline-action-btn-secondary" id="seller-crop-upload">Upload Image</button>
+                <button type="button" class="inline-action-btn" id="seller-crop-camera">Open Camera</button>
+            </div>
+            <div class="capture-canvas-shell">
+                <canvas id="seller-crop-canvas" width="760" height="480"></canvas>
+            </div>
+            <div class="capture-dialog-actions">
+                <button type="button" class="inline-action-btn inline-action-btn-secondary" id="seller-crop-reset">Reset</button>
+                <button type="button" class="inline-action-btn" id="seller-crop-save">Use Cropped Image</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer" id="contact">
         <p>VeriTrade. All rights reserved. | Trusted trading verification.</p>
     </footer>
 </body>
