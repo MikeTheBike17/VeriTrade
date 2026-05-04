@@ -663,6 +663,19 @@ a.exit-btn:focus,
     align-items: start;
 }
 
+.dashboard-grid-spaced {
+    margin-top: 36px;
+}
+
+.dashboard-details-compact {
+    padding-top: 24px;
+    padding-bottom: 24px;
+}
+
+.dashboard-details-compact + .dashboard-details-compact {
+    padding-top: 0;
+}
+
 .seller-single-column {
     max-width: 920px;
     margin: 0 auto;
