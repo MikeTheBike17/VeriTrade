@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - Seller Portal</title>
-    <link rel="stylesheet" href="css/style.css?v=20260504-3">
+    <link rel="stylesheet" href="css/style.css?v=20260504-4">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="javascript/app.js?v=20260504-3" defer></script>
+    <script src="javascript/app.js?v=20260504-4" defer></script>
 </head>
 <body class="portal-page">
     <nav class="navbar">
@@ -207,6 +207,51 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <div class="verification-panel">
+                                    <div class="verification-panel-header">
+                                        <div>
+                                            <p class="section-label">Identity verification</p>
+                                            <h4>Check whether the ID photo matches the selfie</h4>
+                                        </div>
+                                        <span class="result-pill neutral-pill" id="seller-verification-status-pill">Not verified</span>
+                                    </div>
+
+                                    <div class="verification-checklist">
+                                        <p id="seller-verification-id-state">ID upload pending</p>
+                                        <p id="seller-verification-selfie-state">Selfie upload pending</p>
+                                        <p id="seller-verification-match-state">Facial match: none</p>
+                                    </div>
+
+                                    <div class="metric-bar verification-score-bar">
+                                        <span class="metric-fill" id="seller-verification-score-fill" style="width: 0%"></span>
+                                    </div>
+
+                                    <div class="verification-score-grid">
+                                        <div class="verification-score-card">
+                                            <span class="result-label">Score breakdown</span>
+                                            <strong id="seller-verification-breakdown-score">0 / 40</strong>
+                                            <p>ID <-> Selfie Match (40% weight)</p>
+                                        </div>
+                                        <div class="verification-score-card">
+                                            <span class="result-label">Final verification score</span>
+                                            <strong id="seller-verification-total-score">0 / 100</strong>
+                                            <p id="seller-verification-status-text">Upload both images and run the check.</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="verification-message-stack">
+                                        <p class="inline-status" id="seller-verification-progress-text">Upload both images, then click Verify Identity.</p>
+                                        <p class="inline-status" id="seller-verification-loading-text"></p>
+                                    </div>
+
+                                    <div class="verification-action-row">
+                                        <button type="button" class="inline-action-btn" id="seller-verify-identity-btn" disabled>Verify Identity</button>
+                                        <button type="button" class="inline-action-btn inline-action-btn-secondary" id="seller-rerun-verification-btn" disabled>Re-run verification</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <button type="submit" class="submit-btn" id="seller-submit-btn" disabled>Submit Seller Profile</button>
@@ -246,3 +291,4 @@
     </footer>
 </body>
 </html>
+

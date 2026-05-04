@@ -8,6 +8,7 @@ const USER_REDIRECT_PAGE = "user.html";
 const USER_SLUG_PARAM = "slug";
 const LOGIN_ALIAS_STORAGE_KEY = "veritrade_login_aliases";
 const OTP_LENGTH = 6;
+const SELLER_DEMO_VERIFICATION_FUNCTION = "demo-identity-verification";
 
 const hasSupabaseConfig = Boolean(
     window.supabase &&
@@ -71,6 +72,12 @@ function setStatValue(id, value) {
 
 function clampPercent(value) {
     return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function delay(ms) {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, ms);
+    });
 }
 
 function setMetric(prefix, value) {
@@ -900,6 +907,29 @@ async function fetchPurchases(userId) {
     return Array.isArray(data) ? data : [];
 }
 
+async function persistSellerIdentityVerification(userId, verificationResult) {
+    if (!supabaseClient || !userId || !verificationResult) {
+        return;
+    }
+
+    try {
+        await supabaseClient.from("seller_identity_verifications").upsert(
+            {
+                user_id: userId,
+                match_percentage: verificationResult.match_percentage,
+                id_selfie_score: verificationResult.id_selfie_score,
+                total_score: verificationResult.total_score,
+                verification_status: verificationResult.status
+            },
+            {
+                onConflict: "user_id"
+            }
+        );
+    } catch (error) {
+        // Demo storage is optional and should not block the seller flow.
+    }
+}
+
 async function searchSystemUsers(searchTerm) {
     if (!supabaseClient || !searchTerm) {
         return [];
@@ -924,6 +954,70 @@ async function searchSystemUsers(searchTerm) {
     }
 
     return data;
+}
+
+function simulateVerification() {
+    const matchPercentage = Math.floor(Math.random() * (98 - 60 + 1)) + 60;
+    const idSelfieScore = Number(((matchPercentage / 100) * 40).toFixed(1));
+    const totalScore = Number(idSelfieScore.toFixed(1));
+    const status = matchPercentage >= 75 ? "verified" : "review";
+
+    return {
+        match_percentage: matchPercentage,
+        id_selfie_score: idSelfieScore,
+        total_score: totalScore,
+        status
+    };
+}
+
+function normalizeDemoVerificationResult(result) {
+    if (!result || typeof result !== "object") {
+        return null;
+    }
+
+    const matchPercentage = Number(result.match_percentage);
+    const idSelfieScore = Number(result.id_selfie_score);
+    const totalScore = Number(result.total_score);
+    const status = result.status === "verified" ? "verified" : result.status === "review" ? "review" : null;
+
+    if (
+        !Number.isFinite(matchPercentage) ||
+        !Number.isFinite(idSelfieScore) ||
+        !Number.isFinite(totalScore) ||
+        !status
+    ) {
+        return null;
+    }
+
+    return {
+        match_percentage: Math.round(matchPercentage),
+        id_selfie_score: Number(idSelfieScore.toFixed(1)),
+        total_score: Number(totalScore.toFixed(1)),
+        status
+    };
+}
+
+async function requestDemoIdentityVerification(session, payload) {
+    if (supabaseClient) {
+        try {
+            const { data, error } = await supabaseClient.functions.invoke(SELLER_DEMO_VERIFICATION_FUNCTION, {
+                body: {
+                    user_id: session?.user?.id || null,
+                    has_id_photo: Boolean(payload?.idPhotoFile),
+                    has_selfie_photo: Boolean(payload?.selfieFile)
+                }
+            });
+
+            const normalizedResult = normalizeDemoVerificationResult(data);
+            if (!error && normalizedResult) {
+                return normalizedResult;
+            }
+        } catch (error) {
+            // Fall back to a local demo result when the edge function is unavailable.
+        }
+    }
+
+    return simulateVerification();
 }
 
 async function uploadSellerVerificationFile(userId, category, file) {
@@ -1995,56 +2089,22 @@ function getSellerImageComparisonHook() {
     return null;
 }
 
-async function evaluateSellerVerificationMatch(payload) {
-    const comparisonHook = getSellerImageComparisonHook();
+function getSellerVerificationOutcome(verificationResult) {
+    const normalizedResult = normalizeDemoVerificationResult(verificationResult);
+    const fallbackResult = simulateVerification();
+    const safeResult = normalizedResult || fallbackResult;
+    const isVerified = safeResult.status === "verified";
 
-    if (!comparisonHook) {
-        return {
-            matched: null,
-            status: "Pending ID and selfie match",
-            trustScore: 0,
-            isRegisteredSeller: false,
-            purchaseConfidenceScore: 0,
-            message: "Awaiting selfie and ID image comparison API."
-        };
-    }
-
-    try {
-        const comparisonResult = await comparisonHook(payload);
-        const matched =
-            comparisonResult === true ||
-            comparisonResult?.matched === true ||
-            comparisonResult?.isMatch === true;
-
-        if (matched) {
-            return {
-                matched: true,
-                status: "Verified",
-                trustScore: 100,
-                isRegisteredSeller: true,
-                purchaseConfidenceScore: 100,
-                message: "Selfie and ID image match confirmed."
-            };
-        }
-
-        return {
-            matched: false,
-            status: "ID and selfie did not match",
-            trustScore: 0,
-            isRegisteredSeller: false,
-            purchaseConfidenceScore: 0,
-            message: "The comparison API reported that the images did not match."
-        };
-    } catch (error) {
-        return {
-            matched: null,
-            status: "Pending ID and selfie match",
-            trustScore: 0,
-            isRegisteredSeller: false,
-            purchaseConfidenceScore: 0,
-            message: error?.message || "Awaiting selfie and ID image comparison API."
-        };
-    }
+    return {
+        ...safeResult,
+        statusLabel: isVerified ? "Verified" : "Needs Review",
+        trustScore: safeResult.total_score,
+        isRegisteredSeller: isVerified,
+        purchaseConfidenceScore: safeResult.total_score,
+        message: isVerified
+            ? `Demo facial match complete at ${safeResult.match_percentage}%. Identity marked as verified.`
+            : `Demo facial match complete at ${safeResult.match_percentage}%. Identity needs review.`
+    };
 }
 
 function createSellerImageController(onStateChange) {
@@ -2482,11 +2542,28 @@ async function initSellerPage(session, initialProfile) {
     const phoneOtpSendButton = document.getElementById("seller-phone-otp-send");
     const selfieActivateButton = document.getElementById("seller-selfie-activate-btn");
     const idActivateButton = document.getElementById("seller-id-photo-activate-btn");
+    const verifyIdentityButton = document.getElementById("seller-verify-identity-btn");
+    const rerunVerificationButton = document.getElementById("seller-rerun-verification-btn");
+    const verificationStatusPill = document.getElementById("seller-verification-status-pill");
+    const verificationIdState = document.getElementById("seller-verification-id-state");
+    const verificationSelfieState = document.getElementById("seller-verification-selfie-state");
+    const verificationMatchState = document.getElementById("seller-verification-match-state");
+    const verificationBreakdownScore = document.getElementById("seller-verification-breakdown-score");
+    const verificationTotalScore = document.getElementById("seller-verification-total-score");
+    const verificationStatusText = document.getElementById("seller-verification-status-text");
+    const verificationProgressText = document.getElementById("seller-verification-progress-text");
+    const verificationLoadingText = document.getElementById("seller-verification-loading-text");
+    const verificationScoreFill = document.getElementById("seller-verification-score-fill");
     const selectedPlatforms = Array.isArray(existingSellerProfile?.selling_platforms)
         ? existingSellerProfile.selling_platforms
         : Array.isArray(profile?.linked_marketplaces)
             ? profile.linked_marketplaces
             : [];
+    const verificationState = {
+        result: null,
+        isLoading: false,
+        helperMessage: ""
+    };
     const otpState = {
         email: {
             code: null,
@@ -2499,7 +2576,7 @@ async function initSellerPage(session, initialProfile) {
             verified: profile.otp_alerts === true && Boolean(profile.phone_number || existingSellerProfile?.phone)
         }
     };
-    const imageController = createSellerImageController(updateSubmitState);
+    const imageController = createSellerImageController(handleSellerImageChange);
 
     fullNameInput.value =
         existingSellerProfile?.full_name || profile.full_name || session.user.user_metadata?.full_name || "";
@@ -2628,6 +2705,128 @@ async function initSellerPage(session, initialProfile) {
         };
     }
 
+    function setSellerVerificationPill(status) {
+        if (!verificationStatusPill) {
+            return;
+        }
+
+        verificationStatusPill.className = "result-pill";
+
+        if (status === "verified") {
+            verificationStatusPill.classList.add("low-pill");
+            verificationStatusPill.textContent = "Verified";
+            return;
+        }
+
+        if (status === "review") {
+            verificationStatusPill.classList.add("medium-pill");
+            verificationStatusPill.textContent = "Needs Review";
+            return;
+        }
+
+        if (status === "loading") {
+            verificationStatusPill.classList.add("neutral-pill");
+            verificationStatusPill.textContent = "Verifying";
+            return;
+        }
+
+        verificationStatusPill.classList.add("neutral-pill");
+        verificationStatusPill.textContent = "Not verified";
+    }
+
+    function renderSellerVerificationState() {
+        const hasIdPhoto = Boolean(imageController.getFile("id-photo"));
+        const hasSelfiePhoto = Boolean(imageController.getFile("selfie"));
+        const verificationResult = verificationState.result;
+        const hasVerification = Boolean(verificationResult);
+
+        if (verificationIdState) {
+            verificationIdState.textContent = hasIdPhoto ? "ID Uploaded: complete" : "ID upload pending";
+        }
+
+        if (verificationSelfieState) {
+            verificationSelfieState.textContent = hasSelfiePhoto ? "Selfie Captured: complete" : "Selfie upload pending";
+        }
+
+        if (verificationMatchState) {
+            verificationMatchState.textContent = hasVerification
+                ? `Facial Match: ${verificationResult.match_percentage}%`
+                : "Facial match: none";
+        }
+
+        if (verificationBreakdownScore) {
+            verificationBreakdownScore.textContent = hasVerification
+                ? `${verificationResult.id_selfie_score.toFixed(1)} / 40`
+                : "0 / 40";
+        }
+
+        if (verificationTotalScore) {
+            verificationTotalScore.textContent = hasVerification
+                ? `${verificationResult.total_score.toFixed(1)} / 100`
+                : "0 / 100";
+        }
+
+        if (verificationStatusText) {
+            verificationStatusText.textContent = hasVerification
+                ? verificationResult.status === "verified"
+                    ? "Status: Verified"
+                    : "Status: Needs Review"
+                : "Upload both images and run the check.";
+        }
+
+        if (verificationScoreFill) {
+            verificationScoreFill.style.width = hasVerification
+                ? `${Math.max(0, Math.min(100, verificationResult.total_score))}%`
+                : "0%";
+        }
+
+        if (verificationProgressText && !verificationState.isLoading) {
+            verificationProgressText.textContent = hasVerification
+                ? verificationResult.message
+                : verificationState.helperMessage ||
+                    (hasIdPhoto && hasSelfiePhoto
+                        ? "Both images are ready. Click Verify Identity to run the demo check."
+                        : "Upload both images, then click Verify Identity.");
+        }
+
+        if (verificationLoadingText && !verificationState.isLoading) {
+            verificationLoadingText.textContent = "";
+        }
+
+        setSellerVerificationPill(
+            verificationState.isLoading
+                ? "loading"
+                : hasVerification
+                    ? verificationResult.status
+                    : "idle"
+        );
+
+        if (verifyIdentityButton) {
+            verifyIdentityButton.disabled = !hasIdPhoto || !hasSelfiePhoto || verificationState.isLoading;
+        }
+
+        if (rerunVerificationButton) {
+            rerunVerificationButton.disabled = !hasIdPhoto || !hasSelfiePhoto || verificationState.isLoading;
+        }
+    }
+
+    function clearSellerVerification(message = "") {
+        verificationState.result = null;
+        verificationState.isLoading = false;
+        verificationState.helperMessage = message;
+
+        if (verificationLoadingText) {
+            verificationLoadingText.textContent = "";
+        }
+
+        renderSellerVerificationState();
+    }
+
+    function handleSellerImageChange() {
+        clearSellerVerification("Images updated. Verify identity again to calculate a new match score.");
+        updateSubmitState();
+    }
+
     function isFormReady() {
         const fullName = fullNameInput.value.trim();
         const email = emailInput.value.trim().toLowerCase();
@@ -2647,11 +2846,13 @@ async function initSellerPage(session, initialProfile) {
                 validateOtpField("email") &&
                 validateOtpField("phone") &&
                 imageController.getFile("selfie") &&
-                imageController.getFile("id-photo")
+                imageController.getFile("id-photo") &&
+                verificationState.result
         );
     }
 
     function updateSubmitState() {
+        renderSellerVerificationState();
         if (submitButton) {
             submitButton.disabled = !isFormReady();
         }
@@ -2702,6 +2903,70 @@ async function initSellerPage(session, initialProfile) {
         });
     }
 
+    async function runSellerIdentityVerification() {
+        const selfieFile = imageController.getFile("selfie");
+        const idPhotoFile = imageController.getFile("id-photo");
+
+        if (!selfieFile || !idPhotoFile) {
+            clearSellerVerification("Upload both images before running the identity check.");
+            return;
+        }
+
+        verificationState.isLoading = true;
+        verificationState.result = null;
+        verificationState.helperMessage = "";
+        renderSellerVerificationState();
+
+        if (verificationProgressText) {
+            verificationProgressText.textContent = "Verifying identity...";
+        }
+
+        if (verificationLoadingText) {
+            verificationLoadingText.textContent = "";
+        }
+
+        await delay(700);
+
+        if (verificationLoadingText) {
+            verificationLoadingText.textContent = "Checking facial match...";
+        }
+
+        await delay(900);
+
+        const demoVerificationResult = await requestDemoIdentityVerification(session, {
+            selfieFile,
+            idPhotoFile
+        });
+        const verificationOutcome = getSellerVerificationOutcome(demoVerificationResult);
+
+        verificationState.result = verificationOutcome;
+        verificationState.isLoading = false;
+        verificationState.helperMessage = "";
+        renderSellerVerificationState();
+        await persistSellerIdentityVerification(session.user.id, demoVerificationResult);
+        updateSubmitState();
+    }
+
+    if (verifyIdentityButton) {
+        verifyIdentityButton.addEventListener("click", () => {
+            runSellerIdentityVerification().catch(() => {
+                verificationState.isLoading = false;
+                clearSellerVerification("We could not complete the demo verification. Please try again.");
+                updateSubmitState();
+            });
+        });
+    }
+
+    if (rerunVerificationButton) {
+        rerunVerificationButton.addEventListener("click", () => {
+            runSellerIdentityVerification().catch(() => {
+                verificationState.isLoading = false;
+                clearSellerVerification("We could not complete the demo verification. Please try again.");
+                updateSubmitState();
+            });
+        });
+    }
+
     updateSubmitState();
 
     form.addEventListener("submit", async (event) => {
@@ -2720,11 +2985,12 @@ async function initSellerPage(session, initialProfile) {
             sellingPlatforms.length > 0;
         const otpReady = validateOtpField("email", true) && validateOtpField("phone", true);
         const imagesReady = Boolean(selfieFile && idPhotoFile);
+        const verificationResult = verificationState.result;
 
-        if (!requiredSellerInfoComplete || !otpReady || !imagesReady) {
+        if (!requiredSellerInfoComplete || !otpReady || !imagesReady || !verificationResult) {
             setStatusMessage(
                 "seller-save-status",
-                "Complete every required field, verify both OTPs, select a marketplace, and add both cropped images before submitting.",
+                "Complete every required field, verify both OTPs, select a marketplace, add both cropped images, and run Verify Identity before submitting.",
                 "error"
             );
             updateSubmitState();
@@ -2732,18 +2998,6 @@ async function initSellerPage(session, initialProfile) {
         }
 
         setStatusMessage("seller-save-status", "Submitting seller profile...", "");
-
-        const verificationResult = await evaluateSellerVerificationMatch({
-            fullName,
-            email,
-            phone,
-            socialHandle,
-            address: address.formatted,
-            addressParts: address,
-            linkedMarketplaces: sellingPlatforms,
-            selfieFile,
-            idPhotoFile
-        });
 
         const updatedPublicProfile = {
             id: session.user.id,
@@ -2782,7 +3036,7 @@ async function initSellerPage(session, initialProfile) {
             verification_notes: null,
             verification_documents: null,
             agreement_flags: null,
-            seller_verification_status: verificationResult.status,
+            seller_verification_status: verificationResult.statusLabel,
             seller_trust_score: verificationResult.trustScore,
             is_registered_seller: verificationResult.isRegisteredSeller,
             purchase_confidence_score: verificationResult.purchaseConfidenceScore,
@@ -2821,7 +3075,7 @@ async function initSellerPage(session, initialProfile) {
             "seller-save-status",
             verificationResult.isRegisteredSeller
                 ? "Seller profile submitted successfully. Verification status: Verified."
-                : `Seller profile submitted successfully. Verification status: ${verificationResult.status}.`,
+                : `Seller profile submitted successfully. Verification status: ${verificationResult.statusLabel}.`,
             "success"
         );
         window.setTimeout(() => {
@@ -3234,4 +3488,5 @@ document.addEventListener("DOMContentLoaded", () => {
         initPortalPage();
     }
 });
+
 

@@ -833,6 +833,14 @@ input[readonly] {
     box-shadow: 0 12px 24px rgba(27, 127, 92, 0.22);
 }
 
+.inline-action-btn:disabled {
+    background: #c7d4d0;
+    color: #5f6e79;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
 .inline-action-btn-secondary {
     background: #eef5f3;
     color: #173042;
@@ -919,6 +927,85 @@ input[readonly] {
 .capture-preview-copy p {
     color: #5e6a7b;
     line-height: 1.7;
+}
+
+.verification-panel {
+    border: 1px solid #dbe6e2;
+    border-radius: 22px;
+    padding: 24px;
+    background: linear-gradient(180deg, #ffffff 0%, #f6fbf9 100%);
+}
+
+.verification-panel-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+}
+
+.verification-panel-header h4 {
+    color: #1c2533;
+    font-size: 24px;
+    margin-top: 6px;
+}
+
+.verification-checklist {
+    display: grid;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.verification-checklist p {
+    color: #334155;
+    font-weight: 600;
+}
+
+.verification-score-bar {
+    margin-top: 18px;
+}
+
+.verification-score-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.verification-score-card {
+    border: 1px solid #dbe6e2;
+    border-radius: 18px;
+    padding: 18px;
+    background: #fff;
+}
+
+.verification-score-card strong {
+    display: block;
+    color: #1c2533;
+    font-size: 28px;
+    line-height: 1.1;
+    margin-bottom: 8px;
+}
+
+.verification-score-card p {
+    color: #5e6a7b;
+    line-height: 1.7;
+}
+
+.verification-message-stack {
+    display: grid;
+    gap: 6px;
+    margin-top: 18px;
+}
+
+.verification-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.verification-action-row .inline-action-btn {
+    margin-top: 0;
 }
 
 .status-banner {
@@ -1711,9 +1798,15 @@ input[readonly] {
     .capture-dialog-header,
     .capture-dialog-toolbar,
     .capture-dialog-actions,
-    .upload-panel-actions {
+    .upload-panel-actions,
+    .verification-panel-header,
+    .verification-action-row {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .verification-score-grid {
+        grid-template-columns: 1fr;
     }
 
     .stat-value {
