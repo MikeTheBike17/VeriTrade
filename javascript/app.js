@@ -1730,6 +1730,37 @@ async function ensurePortalSession() {
     };
 }
 
+function initPortalNav() {
+    const toggleButton = document.querySelector(".portal-nav-toggle");
+    const navMenu = document.querySelector(".portal-nav-menu");
+
+    if (!toggleButton || !navMenu) {
+        return;
+    }
+
+    function closeMenu() {
+        navMenu.classList.remove("is-open");
+        toggleButton.setAttribute("aria-expanded", "false");
+    }
+
+    function toggleMenu() {
+        const isOpen = navMenu.classList.toggle("is-open");
+        toggleButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    }
+
+    toggleButton.addEventListener("click", toggleMenu);
+
+    navMenu.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", closeMenu);
+    });
+
+    window.addEventListener("resize", () => {
+        if (window.innerWidth > 768) {
+            closeMenu();
+        }
+    });
+}
+
 function setInlineStatus(id, message, type = "") {
     const element = document.getElementById(id);
     if (!element) {
@@ -3064,6 +3095,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (document.body.classList.contains("portal-page")) {
+        initPortalNav();
         initPortalPage();
     }
 });

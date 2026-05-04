@@ -17,12 +17,23 @@
                 <img src="assets/VeriTrade-logo.png" alt="VeriTrade Logo" class="nav-logo-img">
                 <span class="nav-logo-text">VeriTrade</span>
             </a>
-            <ul class="nav-links-inside">
-                <li><a href="user.html">Admin</a></li>
-                <li><a href="seller.html">Seller</a></li>
-                <li><a href="buyer.html" class="active">Buyer</a></li>
-            </ul>
-            <a href="index.html" class="exit-btn" id="logout-btn" data-signout-link>Log Out</a>
+            <button
+                type="button"
+                class="portal-nav-toggle"
+                aria-expanded="false"
+                aria-controls="portal-nav-menu"
+                aria-label="Open navigation menu"
+            >
+                Menu
+            </button>
+            <div class="portal-nav-menu" id="portal-nav-menu">
+                <ul class="nav-links-inside">
+                    <li><a href="user.html">Admin</a></li>
+                    <li><a href="seller.html">Seller</a></li>
+                    <li><a href="buyer.html" class="active">Buyer</a></li>
+                </ul>
+                <a href="index.html" class="exit-btn" id="logout-btn" data-signout-link>Log Out</a>
+            </div>
         </div>
     </nav>
 
