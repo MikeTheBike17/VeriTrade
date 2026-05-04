@@ -553,7 +553,7 @@ a.exit-btn:focus,
 .access-banner-content {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
+    align-items: stretch;
     gap: 28px 36px;
 }
 
@@ -580,11 +580,12 @@ a.exit-btn:focus,
     border-radius: 12px;
     color: white;
     padding: 12px 50px;
-    margin: 20px 0 -10px 0;
+    margin: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     white-space: nowrap;
+    align-self: end;
 }
 
 .btn-signup-home:hover {
