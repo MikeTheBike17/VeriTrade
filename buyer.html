@@ -7,7 +7,7 @@
     <title>VeriTrade - Buyer Portal</title>
     <link rel="stylesheet" href="css/style.css?v=20260504-4">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="javascript/app.js?v=20260504-4" defer></script>
+    <script src="javascript/app.js?v=20260505-3" defer></script>
 </head>
 <body class="portal-page">
     <!-- Navigation Bar -->
@@ -200,29 +200,29 @@
 
                 <article class="detail-card result-card" id="buyer-result-card">
                     <span class="card-kicker">Buyer trust score</span>
-                    <h3 id="buyer-result-heading">none</h3>
+                    <h3 id="buyer-result-heading">-</h3>
                     <p id="buyer-result-message">Submit your buyer profile to calculate a trust score and store your verification status.</p>
                     <div class="result-score-row">
                         <div>
                             <span class="result-label">Buyer score</span>
-                            <strong class="result-score" id="buyer-result-score">none</strong>
+                            <strong class="result-score" id="buyer-result-score">-</strong>
                         </div>
                         <div>
                             <span class="result-label">Verification status</span>
-                            <strong class="result-pill neutral-pill" id="buyer-result-status">none</strong>
+                            <strong class="result-pill neutral-pill" id="buyer-result-status">-</strong>
                         </div>
                     </div>
                     <ul class="detail-list result-meta">
-                        <li><span>Buying platforms</span><strong id="buyer-result-platforms">none</strong></li>
-                        <li><span>Behaviour agreements</span><strong id="buyer-result-behaviour">none</strong></li>
-                        <li><span>Verification records</span><strong id="buyer-result-documents">none</strong></li>
+                        <li><span>Buying platforms</span><strong id="buyer-result-platforms">-</strong></li>
+                        <li><span>Behaviour agreements</span><strong id="buyer-result-behaviour">-</strong></li>
+                        <li><span>Verification records</span><strong id="buyer-result-documents">-</strong></li>
                     </ul>
                 </article>
 
                 <article class="detail-card portal-form-card">
                     <span class="card-kicker">Purchase flow</span>
                     <h3>Record a purchase and seller contact details</h3>
-                    <p class="form-note">For unregistered sellers, only the seller name, email, and phone number are stored with the purchase record.</p>
+                    <p class="form-note">Each saved purchase is stored as pending and appears in the Pending Purchases section on your user page with the seller name, email, phone number, and entry date.</p>
                     <form id="buyer-purchase-form" class="portal-form">
                         <div class="portal-form-grid">
                             <div class="form-group">

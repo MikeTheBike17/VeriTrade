@@ -1,7 +1,7 @@
 const SUPABASE_URL = "https://ppbeiefwfqwmtatfgsve.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_lb1Eiw4hXEfTMDYh3nMp0w_WolruYMh";
 const DEFAULT_WORKSPACE_ACCESS = "Buyer and Seller";
-const EMPTY_LABEL = "none";
+const EMPTY_LABEL = "-";
 const SELLER_STORAGE_BUCKET = "seller-verification-records";
 const BUYER_STORAGE_BUCKET = "buyer-verification-records";
 const USER_REDIRECT_PAGE = "user.html";
@@ -37,6 +37,26 @@ function formatDate(dateString) {
         month: "short",
         year: "numeric"
     });
+}
+
+function formatPurchaseStatusLabel(status) {
+    if (status === "delivered") {
+        return "Product received";
+    }
+
+    if (status === "not_delivered") {
+        return "Never received";
+    }
+
+    if (status === "fraud_reported") {
+        return "Fraud reported";
+    }
+
+    if (status === "pending") {
+        return "Pending";
+    }
+
+    return status ? String(status).replaceAll("_", " ") : EMPTY_LABEL;
 }
 
 function showAlert(message) {
@@ -272,18 +292,6 @@ function getOtpSuccessRate(checksList, profile = null) {
     return clampPercent((successfulChecks / checksList.length) * 100);
 }
 
-function formatOtpAlertLabel(profile) {
-    if (profile?.otp_alerts === true) {
-        return "Email and phone verified";
-    }
-
-    if (profile?.otp_alerts === false) {
-        return "Verification pending";
-    }
-
-    return EMPTY_LABEL;
-}
-
 function getAverageMatchRate(checksList) {
     const numericRates = checksList
         .map((check) => Number(check.matched_detail_rate))
@@ -401,6 +409,14 @@ function getSellerRegistrationBadge(sellerProfile) {
     return sellerProfile?.is_registered_seller ? "Registered Seller" : EMPTY_LABEL;
 }
 
+function isPurchaseFlaggedForFutureChecks(purchase) {
+    return Boolean(
+        purchase?.fraud_reported ||
+            purchase?.purchase_status === "not_delivered" ||
+            purchase?.purchase_status === "fraud_reported"
+    );
+}
+
 function getSellerTrustScoreLabel(sellerProfile) {
     const trustScore = Number(sellerProfile?.seller_trust_score);
     return Number.isFinite(trustScore) && trustScore > 0 ? `${trustScore}%` : EMPTY_LABEL;
@@ -428,66 +444,6 @@ function renderSellerStatusSummary(sellerProfile, fallbackUser) {
         getSellerDocumentCount(sellerProfile) ? `${getSellerDocumentCount(sellerProfile)} submitted` : EMPTY_LABEL
     );
     setTextContent("seller-status-platforms", getSellerPlatformLabel(sellerProfile));
-}
-
-function ensureUserSellerAnalyticsCard() {
-    const dashboardGrid = document.querySelector(".dashboard-grid");
-
-    if (!dashboardGrid) {
-        return null;
-    }
-
-    let sellerCard = document.getElementById("seller-analytics-card");
-    if (sellerCard) {
-        return sellerCard;
-    }
-
-    sellerCard = document.createElement("article");
-    sellerCard.className = "detail-card";
-    sellerCard.id = "seller-analytics-card";
-    sellerCard.innerHTML = `
-        <span class="card-kicker">Seller analytics</span>
-        <h3>Seller confidence status</h3>
-        <ul class="detail-list">
-            <li><span>Registered seller</span><strong id="seller-analytics-registered">${EMPTY_LABEL}</strong></li>
-            <li><span>Verification status</span><strong id="seller-analytics-status">${EMPTY_LABEL}</strong></li>
-            <li><span>Seller trust score</span><strong id="seller-analytics-trust">${EMPTY_LABEL}</strong></li>
-            <li><span>Purchase confidence</span><strong id="seller-analytics-confidence">${EMPTY_LABEL}</strong></li>
-            <li><span>Listed products</span><strong id="seller-analytics-products">${EMPTY_LABEL}</strong></li>
-            <li><span>Completed sales</span><strong id="seller-analytics-sales">${EMPTY_LABEL}</strong></li>
-        </ul>
-    `;
-
-    dashboardGrid.appendChild(sellerCard);
-    return sellerCard;
-}
-
-function renderUserSellerAnalytics(sellerProfile) {
-    const sellerCard = ensureUserSellerAnalyticsCard();
-
-    if (!sellerCard) {
-        return;
-    }
-
-    setTextContent("seller-analytics-registered", getSellerRegistrationBadge(sellerProfile));
-    setTextContent(
-        "seller-analytics-status",
-        sellerProfile?.seller_verification_status || EMPTY_LABEL
-    );
-    setTextContent("seller-analytics-trust", getSellerTrustScoreLabel(sellerProfile));
-    setTextContent("seller-analytics-confidence", getPurchaseConfidenceLabel(sellerProfile));
-    setTextContent(
-        "seller-analytics-products",
-        Number.isFinite(Number(sellerProfile?.listed_products_count))
-            ? String(Number(sellerProfile.listed_products_count))
-            : EMPTY_LABEL
-    );
-    setTextContent(
-        "seller-analytics-sales",
-        Number.isFinite(Number(sellerProfile?.completed_sales_count))
-            ? String(Number(sellerProfile.completed_sales_count))
-            : EMPTY_LABEL
-    );
 }
 
 function ensureUserBuyerAnalyticsCard() {
@@ -640,41 +596,42 @@ function renderPurchaseList(purchases) {
         return;
     }
 
-    if (!purchases.length) {
+    const pendingPurchases = purchases.filter((purchase) => purchase.purchase_status === "pending");
+
+    if (!pendingPurchases.length) {
         purchaseList.innerHTML = `
             <article class="history-item empty-state">
                 <h4>${EMPTY_LABEL}</h4>
-                <p>Your purchases will appear here after you save them from the Buyer page.</p>
+                <p>No pending purchases right now. New purchases saved from the Buyer page will appear here until you mark them as received or never received.</p>
             </article>
         `;
         return;
     }
 
-    const fraudKeys = new Set(
+    const riskKeys = new Set(
         purchases
-            .filter((purchase) => purchase.fraud_reported)
+            .filter((purchase) => isPurchaseFlaggedForFutureChecks(purchase))
             .flatMap((purchase) => [normalizeText(purchase.seller_email), normalizePhone(purchase.seller_phone)])
             .filter(Boolean)
     );
 
-    purchaseList.innerHTML = purchases
+    purchaseList.innerHTML = pendingPurchases
         .map((purchase) => {
             const warningTriggered =
-                !purchase.fraud_reported &&
+                !isPurchaseFlaggedForFutureChecks(purchase) &&
                 (
-                    fraudKeys.has(normalizeText(purchase.seller_email)) ||
-                    fraudKeys.has(normalizePhone(purchase.seller_phone))
+                    riskKeys.has(normalizeText(purchase.seller_email)) ||
+                    riskKeys.has(normalizePhone(purchase.seller_phone))
                 );
 
             return `
                 <article class="history-item" data-purchase-id="${escapeHtml(purchase.id)}">
                     <p class="history-date">${escapeHtml(formatDate(purchase.created_at))}</p>
                     <h4>${escapeHtml(purchase.product_name || "Purchase")}</h4>
-                    <p>Seller type: ${escapeHtml(purchase.seller_type || EMPTY_LABEL)}</p>
                     <p>Seller name: ${escapeHtml(purchase.seller_name || EMPTY_LABEL)}</p>
                     <p>Seller email: ${escapeHtml(purchase.seller_email || EMPTY_LABEL)}</p>
                     <p>Seller phone: ${escapeHtml(purchase.seller_phone || EMPTY_LABEL)}</p>
-                    <p>Current status: ${escapeHtml(purchase.purchase_status || EMPTY_LABEL)}</p>
+                    <p>Current status: ${escapeHtml(formatPurchaseStatusLabel(purchase.purchase_status))}</p>
                     ${
                         purchase.fraud_reported
                             ? '<p><strong class="result-pill high-pill">Fraud Reported</strong></p>'
@@ -682,13 +639,12 @@ function renderPurchaseList(purchases) {
                     }
                     ${
                         warningTriggered
-                            ? '<p><strong class="result-pill medium-pill">Warning: This seller has been reported before.</strong></p>'
+                            ? '<p><strong class="result-pill medium-pill">Warning: This seller has previous non-delivery or fraud reports.</strong></p>'
                             : ""
                     }
                     <p>
-                        <button type="button" class="card-btn buyer-btn" data-purchase-action="delivered" data-purchase-id="${escapeHtml(purchase.id)}">Mark as Delivered</button>
-                        <button type="button" class="card-btn seller-btn" data-purchase-action="not-delivered" data-purchase-id="${escapeHtml(purchase.id)}">Mark as Not Delivered</button>
-                        <button type="button" class="card-btn seller-btn" data-purchase-action="fraud" data-purchase-id="${escapeHtml(purchase.id)}">Report as Fraud</button>
+                        <button type="button" class="card-btn buyer-btn" data-purchase-action="delivered" data-purchase-id="${escapeHtml(purchase.id)}">Product Received</button>
+                        <button type="button" class="card-btn seller-btn" data-purchase-action="not-delivered" data-purchase-id="${escapeHtml(purchase.id)}">Never Received</button>
                     </p>
                 </article>
             `;
@@ -1298,19 +1254,29 @@ async function findRegisteredSellerByContact(sellerEmail, sellerPhone) {
     return null;
 }
 
-async function hasSellerFraudWarning(sellerEmail, sellerPhone) {
+async function hasSellerRiskWarning(sellerEmail, sellerPhone) {
     if (!supabaseClient) {
         return false;
     }
 
-    const { data } = await supabaseClient
-        .from("purchases")
-        .select("seller_email, seller_phone")
-        .eq("fraud_reported", true);
-
-    const purchases = Array.isArray(data) ? data : [];
     const normalizedEmail = normalizeText(sellerEmail);
     const normalizedPhone = normalizePhone(sellerPhone);
+
+    const { data: rpcData, error: rpcError } = await supabaseClient.rpc("has_seller_risk_warning", {
+        p_email: normalizedEmail || null,
+        p_phone: normalizedPhone || null
+    });
+
+    if (!rpcError && typeof rpcData === "boolean") {
+        return rpcData;
+    }
+
+    const { data } = await supabaseClient
+        .from("purchases")
+        .select("seller_email, seller_phone, purchase_status, fraud_reported")
+        .or("fraud_reported.eq.true,purchase_status.eq.not_delivered,purchase_status.eq.fraud_reported");
+
+    const purchases = Array.isArray(data) ? data : [];
 
     return purchases.some(
         (purchase) =>
@@ -1352,19 +1318,9 @@ function bindPurchaseActions(userId) {
             };
         } else if (action === "not-delivered") {
             updates = {
-                purchase_status: "not_delivered"
-            };
-        } else if (action === "fraud") {
-            const fraudReason = window.prompt("Enter a short fraud reason:");
-
-            if (!fraudReason || !fraudReason.trim()) {
-                return;
-            }
-
-            updates = {
-                purchase_status: "fraud_reported",
-                fraud_reported: true,
-                fraud_reason: fraudReason.trim()
+                purchase_status: "not_delivered",
+                fraud_reported: false,
+                fraud_reason: null
             };
         } else {
             return;
@@ -1386,7 +1342,7 @@ function bindPurchaseActions(userId) {
             userId,
             eventType: "verification",
             title: "Purchase status updated",
-            description: `Purchase "${data.product_name}" was updated to ${data.purchase_status.replaceAll("_", " ")}.`
+            description: `Purchase "${data.product_name}" was updated to ${formatPurchaseStatusLabel(data.purchase_status).toLowerCase()}.`
         });
 
         const purchases = await fetchPurchases(userId);
@@ -2498,7 +2454,11 @@ async function initUserPage(session, initialProfile) {
     setTextContent("profile-full-name", displayProfile.full_name || EMPTY_LABEL);
     setTextContent("profile-username", displayProfile.username || EMPTY_LABEL);
     setTextContent("profile-email", displayProfile.auth_email || EMPTY_LABEL);
-    setTextContent("profile-otp-alerts", formatOtpAlertLabel(profile));
+    setTextContent("profile-registered-seller", getSellerRegistrationBadge(sellerProfile));
+    setTextContent(
+        "profile-verification-status",
+        sellerProfile?.seller_verification_status || EMPTY_LABEL
+    );
     setTextContent(
         "profile-linked-marketplaces",
         linkedMarketplaces.length ? linkedMarketplaces.join(", ") : EMPTY_LABEL
@@ -2510,9 +2470,6 @@ async function initUserPage(session, initialProfile) {
     setMetric("metric-feedback", snapshot.positiveFeedbackTrend);
 
     renderHistoryList(historyList);
-    if (sellerProfile) {
-        renderUserSellerAnalytics(sellerProfile);
-    }
     renderUserPurchaseAnalytics(purchases);
     renderPurchaseList(purchases);
     initUserSearch();
@@ -2751,7 +2708,7 @@ async function initSellerPage(session, initialProfile) {
         if (verificationMatchState) {
             verificationMatchState.textContent = hasVerification
                 ? `Facial Match: ${verificationResult.match_percentage}%`
-                : "Facial match: none";
+                : "Facial match: -";
         }
 
         if (verificationBreakdownScore) {
@@ -3410,9 +3367,10 @@ async function initBuyerPage(session) {
             }
 
             const registeredSeller = await findRegisteredSellerByContact(sellerEmail, sellerPhone);
-            const fraudWarning = await hasSellerFraudWarning(sellerEmail, sellerPhone);
+            const riskWarning = await hasSellerRiskWarning(sellerEmail, sellerPhone);
             const purchasePayload = {
                 buyer_user_id: session.user.id,
+                seller_user_id: registeredSeller?.user_id || null,
                 listing_id: listingId,
                 product_name: productName,
                 seller_type: registeredSeller ? "Registered Seller" : "Unregistered Seller",
@@ -3444,12 +3402,12 @@ async function initBuyerPage(session) {
 
             setStatusMessage(
                 "buyer-purchase-status",
-                fraudWarning
-                    ? "Purchase saved. Warning: This seller has been reported before."
+                riskWarning
+                    ? "Purchase saved. Warning: This seller has previous non-delivery or fraud reports."
                     : registeredSeller
-                        ? "Purchase record saved successfully. Registered Seller. Purchase Confidence: 100%."
-                        : "Purchase record saved successfully.",
-                fraudWarning ? "error" : "success"
+                        ? "Purchase record saved successfully. It now appears in Pending Purchases on your user page. Registered Seller. Purchase Confidence: 100%."
+                        : "Purchase record saved successfully. It now appears in Pending Purchases on your user page.",
+                riskWarning ? "error" : "success"
             );
 
             purchaseForm.reset();
