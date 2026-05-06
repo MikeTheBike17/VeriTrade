@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - Buyer Portal</title>
-    <link rel="stylesheet" href="css/style.css?v=20260504-4">
+    <link rel="stylesheet" href="css/style.css?v=20260506-1">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="javascript/app.js?v=20260505-3" defer></script>
+    <script src="javascript/app.js?v=20260506-1" defer></script>
 </head>
 <body class="portal-page">
     <!-- Navigation Bar -->
@@ -38,238 +38,190 @@
     </nav>
 
     <!-- Hero Section -->
-    <section class="portal-hero">
+    <section class="portal-hero seller-hero">
         <div class="portal-hero-content">
             <h1>Buyer Portal</h1>
-            <p>Validate purchases with confidence. Verify sellers, check product authenticity, and protect your investments.</p>
+            <p>Record seller details, run a demo identity safety check, and manage post-purchase follow-up from one place.</p>
         </div>
     </section>
 
     <section class="dashboard-details">
         <div class="portal-container">
-            <div class="dashboard-grid">
-                <article class="detail-card portal-form-card">
-                    <span class="card-kicker">Buyer profile</span>
-                    <h3>Submit your buyer details for scoring</h3>
-                    <p class="form-note">The more complete and reliable your buyer information is, the stronger your buyer trust score becomes on ReTrade.</p>
-                    <form id="buyer-profile-form" class="portal-form">
-                        <div class="portal-form-grid">
-                            <div class="form-group portal-form-grid-wide">
-                                <label>1. Buyer Personal Information</label>
-                                <p class="form-note">Complete your core identity and contact fields to build buyer confidence.</p>
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-full-name">Full Name</label>
-                                <input type="text" id="buyer-full-name" placeholder="Enter your full name" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-email">Email Address</label>
-                                <input type="email" id="buyer-email" readonly>
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-phone">Phone Number</label>
-                                <input type="text" id="buyer-phone" placeholder="Enter your phone number" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-location">Location / Area</label>
-                                <input type="text" id="buyer-location" placeholder="Enter your area or suburb" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-student-number">Student Number</label>
-                                <input type="text" id="buyer-student-number" placeholder="Optional student number">
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-institution">Institution / Campus</label>
-                                <input type="text" id="buyer-institution" placeholder="Optional institution or campus">
-                            </div>
+            <article class="detail-card">
+                <span class="card-kicker">Before you continue</span>
+                <h3>Ask the seller to register on VeriTrade first</h3>
+                <p>Before buying from a seller, it is best to ask them to register with VeriTrade so their identity and trust profile can be checked properly. If the seller declines or is not willing to register, you can use this page to record the seller details yourself and run a basic safety check before continuing with the purchase.</p>
+            </article>
 
-                            <div class="form-group portal-form-grid-wide">
-                                <label>2. Buying Platform Information</label>
-                                <p class="form-note">Tell ReTrade where you usually buy or communicate with sellers.</p>
-                            </div>
-                            <div class="form-group portal-form-grid-wide">
-                                <label>Where do you usually buy or communicate with sellers?</label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="buyer-platform" value="Facebook Marketplace">
-                                    Facebook Marketplace
-                                </label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="buyer-platform" value="WhatsApp">
-                                    WhatsApp
-                                </label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="buyer-platform" value="Instagram">
-                                    Instagram
-                                </label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="buyer-platform" value="Gumtree">
-                                    Gumtree
-                                </label>
-                                <label class="checkbox checkbox-row">
-                                    <input type="checkbox" name="buyer-platform" value="Other">
-                                    Other
-                                </label>
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-platform-facebook">Facebook Marketplace Profile</label>
-                                <input type="text" id="buyer-platform-facebook" placeholder="Profile link or username">
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-platform-whatsapp">WhatsApp</label>
-                                <input type="text" id="buyer-platform-whatsapp" placeholder="Phone number or wa.me link">
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-platform-instagram">Instagram</label>
-                                <input type="text" id="buyer-platform-instagram" placeholder="@username or profile link">
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-platform-gumtree">Gumtree</label>
-                                <input type="text" id="buyer-platform-gumtree" placeholder="Profile link or username">
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-platform-other-name">Other Platform Name</label>
-                                <input type="text" id="buyer-platform-other-name" placeholder="Enter the platform name">
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-platform-other-link">Other Platform Link or Username</label>
-                                <input type="text" id="buyer-platform-other-link" placeholder="Enter the profile link or username">
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-contact-reference">Contact Reference</label>
-                                <input type="text" id="buyer-contact-reference" placeholder="Optional reference or contact note">
-                            </div>
-                            <div class="form-group portal-form-grid-wide">
-                                <label for="buyer-extra-details">Extra Buyer Details</label>
-                                <textarea id="buyer-extra-details" rows="4" placeholder="Add any extra buying details that help establish trust."></textarea>
-                            </div>
-
-                            <div class="form-group portal-form-grid-wide">
-                                <label>3. Buyer Behaviour Information</label>
-                                <p class="form-note">These behaviour confirmations support a stronger buyer reputation score.</p>
-                            </div>
-                        </div>
-
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="buyer-behaviour-respectful">
-                            I agree to communicate respectfully with sellers.
-                        </label>
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="buyer-behaviour-no-fake-offers">
-                            I agree not to make fake offers.
-                        </label>
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="buyer-behaviour-honour-agreements">
-                            I agree to honour accepted purchase agreements.
-                        </label>
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="buyer-behaviour-cancel-properly">
-                            I agree to cancel properly if I no longer want a product.
-                        </label>
-                        <label class="checkbox checkbox-row">
-                            <input type="checkbox" id="buyer-behaviour-rules">
-                            I agree to follow the ReTrade marketplace rules.
-                        </label>
-
-                        <div class="portal-form-grid">
-                            <div class="form-group portal-form-grid-wide">
-                                <label>4. Buyer Verification Information</label>
-                                <p class="form-note">Verification records are optional for now, but they can improve the buyer trust score.</p>
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-identity-proof">Upload Proof of Identity</label>
-                                <input type="file" id="buyer-identity-proof" accept=".pdf,.png,.jpg,.jpeg">
-                            </div>
-                            <div class="form-group">
-                                <label for="buyer-student-proof">Upload Proof of Student Registration</label>
-                                <input type="file" id="buyer-student-proof" accept=".pdf,.png,.jpg,.jpeg">
-                            </div>
-                            <div class="form-group portal-form-grid-wide">
-                                <label for="buyer-address-proof">Upload Proof of Address</label>
-                                <input type="file" id="buyer-address-proof" accept=".pdf,.png,.jpg,.jpeg">
-                            </div>
-                            <div class="form-group portal-form-grid-wide">
-                                <label for="buyer-verification-notes">Additional Verification Notes</label>
-                                <textarea id="buyer-verification-notes" rows="4" placeholder="Add any notes that help explain your buyer identity or communication style."></textarea>
-                            </div>
-                        </div>
-
-                        <button type="submit" class="submit-btn">Submit Buyer Profile</button>
-                        <p class="status-banner" id="buyer-profile-status"></p>
-                    </form>
-                </article>
-
-                <article class="detail-card result-card" id="buyer-result-card">
-                    <span class="card-kicker">Buyer trust score</span>
-                    <h3 id="buyer-result-heading">-</h3>
-                    <p id="buyer-result-message">Submit your buyer profile to calculate a trust score and store your verification status.</p>
-                    <div class="result-score-row">
-                        <div>
-                            <span class="result-label">Buyer score</span>
-                            <strong class="result-score" id="buyer-result-score">-</strong>
-                        </div>
-                        <div>
-                            <span class="result-label">Verification status</span>
-                            <strong class="result-pill neutral-pill" id="buyer-result-status">-</strong>
-                        </div>
-                    </div>
-                    <ul class="detail-list result-meta">
-                        <li><span>Buying platforms</span><strong id="buyer-result-platforms">-</strong></li>
-                        <li><span>Behaviour agreements</span><strong id="buyer-result-behaviour">-</strong></li>
-                        <li><span>Verification records</span><strong id="buyer-result-documents">-</strong></li>
-                    </ul>
-                </article>
-
-                <article class="detail-card portal-form-card">
-                    <span class="card-kicker">Purchase flow</span>
-                    <h3>Record a purchase and seller contact details</h3>
-                    <p class="form-note">Each saved purchase is stored as pending and appears in the Pending Purchases section on your user page with the seller name, email, phone number, and entry date.</p>
+            <div class="seller-single-column">
+                <article class="detail-card portal-form-card seller-registration-card buyer-seller-safety-card">
+                    <span class="card-kicker">Seller safety record</span>
+                    <h3>Record and assess a seller before or after purchase</h3>
+                    <p class="form-note">Use this form to capture the seller details you received, run the same demo ID and selfie match used on the seller page, and save a privacy-safe seller record for post-purchase follow-up.</p>
                     <form id="buyer-purchase-form" class="portal-form">
-                        <div class="portal-form-grid">
+                        <div class="portal-form-grid seller-registration-grid">
                             <div class="form-group">
-                                <label for="purchase-product-name">Product Name</label>
-                                <input type="text" id="purchase-product-name" placeholder="Enter the product name" required>
+                                <label for="purchase-seller-name">Seller Full Name</label>
+                                <input type="text" id="purchase-seller-name" placeholder="Enter the seller full name" required>
                             </div>
                             <div class="form-group">
-                                <label for="purchase-listing-id">Listing ID</label>
-                                <input type="text" id="purchase-listing-id" placeholder="Optional listing reference">
+                                <label for="purchase-seller-email">Seller Email Address</label>
+                                <input type="email" id="purchase-seller-email" placeholder="Enter the seller email address" required>
                             </div>
                             <div class="form-group">
-                                <label for="purchase-seller-name">Seller Name</label>
-                                <input type="text" id="purchase-seller-name" placeholder="Enter the seller name" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="purchase-seller-email">Seller Email</label>
-                                <input type="email" id="purchase-seller-email" placeholder="Enter the seller email" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="purchase-seller-phone">Seller Phone</label>
+                                <label for="purchase-seller-phone">Seller Phone Number</label>
                                 <input type="text" id="purchase-seller-phone" placeholder="Enter the seller phone number" required>
                             </div>
+                            <div class="form-group">
+                                <label for="purchase-seller-id-number">Seller ID Number</label>
+                                <input type="text" id="purchase-seller-id-number" placeholder="Enter the seller ID number" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="purchase-seller-social-handle">Seller Social Handle <span class="input-optional">(Optional)</span></label>
+                                <input type="text" id="purchase-seller-social-handle" placeholder="@username or public profile handle">
+                            </div>
+                            <div class="form-group">
+                                <label for="purchase-marketplace-profile">Marketplace Profile Link <span class="input-optional">(Optional)</span></label>
+                                <input type="text" id="purchase-marketplace-profile" placeholder="Marketplace link or seller profile URL">
+                            </div>
+                            <div class="form-group">
+                                <label for="purchase-business-name">Business Name <span class="input-optional">(Optional)</span></label>
+                                <input type="text" id="purchase-business-name" placeholder="Optional store or business name">
+                            </div>
+                            <div class="form-group">
+                                <label for="purchase-bank-account-holder">Bank Account Holder Name <span class="input-optional">(Optional)</span></label>
+                                <input type="text" id="purchase-bank-account-holder" placeholder="Optional account holder name">
+                            </div>
+                            <div class="form-group portal-form-grid-wide">
+                                <label for="purchase-seller-notes">Additional Seller Notes <span class="input-optional">(Optional)</span></label>
+                                <textarea id="purchase-seller-notes" rows="4" placeholder="Add any public marketplace or communication notes that help you keep track of this seller."></textarea>
+                            </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <div class="upload-panel">
+                                    <div class="upload-panel-copy">
+                                        <label for="buyer-selfie-upload">Seller Selfie / Photo Upload</label>
+                                        <p class="form-note">The seller selfie or portrait photo is only used for the demo ID match and is not stored.</p>
+                                    </div>
+                                    <button type="button" class="inline-action-btn" id="buyer-selfie-activate-btn">Upload Seller Selfie</button>
+                                    <input type="file" id="buyer-selfie-camera" accept="image/*" capture="user" hidden>
+                                    <input type="file" id="buyer-selfie-upload" accept="image/*" hidden>
+                                    <div class="capture-preview-card" id="buyer-selfie-preview-card" hidden>
+                                        <div class="capture-preview-thumb" id="buyer-selfie-preview-thumb"></div>
+                                        <div class="capture-preview-copy">
+                                            <strong id="buyer-selfie-file-name">No selfie selected</strong>
+                                            <p id="buyer-selfie-preview-note">A cropped selfie preview will appear here.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <div class="upload-panel">
+                                    <div class="upload-panel-copy">
+                                        <label for="buyer-id-photo-upload">Seller ID Photo Upload</label>
+                                        <p class="form-note">The seller ID photo is only used for the demo check and is not stored.</p>
+                                    </div>
+                                    <button type="button" class="inline-action-btn" id="buyer-id-photo-activate-btn">Upload Seller ID Photo</button>
+                                    <input type="file" id="buyer-id-photo-camera" accept="image/*" capture="environment" hidden>
+                                    <input type="file" id="buyer-id-photo-upload" accept="image/*" hidden>
+                                    <div class="capture-preview-card" id="buyer-id-photo-preview-card" hidden>
+                                        <div class="capture-preview-thumb" id="buyer-id-photo-preview-thumb"></div>
+                                        <div class="capture-preview-copy">
+                                            <strong id="buyer-id-photo-file-name">No ID photo selected</strong>
+                                            <p id="buyer-id-photo-preview-note">A cropped ID preview will appear here.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group portal-form-grid-wide">
+                                <div class="verification-panel">
+                                    <div class="verification-panel-header">
+                                        <div>
+                                            <p class="section-label">Identity verification</p>
+                                            <h4>Check whether the seller ID photo matches the selfie</h4>
+                                        </div>
+                                        <span class="result-pill neutral-pill" id="buyer-verification-status-pill">Not verified</span>
+                                    </div>
+
+                                    <div class="verification-checklist">
+                                        <p id="buyer-verification-id-state">ID upload pending</p>
+                                        <p id="buyer-verification-selfie-state">Selfie upload pending</p>
+                                        <p id="buyer-verification-match-state">Facial match: -</p>
+                                    </div>
+
+                                    <div class="metric-bar verification-score-bar">
+                                        <span class="metric-fill" id="buyer-verification-score-fill" style="width: 0%"></span>
+                                    </div>
+
+                                    <div class="verification-score-grid">
+                                        <div class="verification-score-card">
+                                            <span class="result-label">Score breakdown</span>
+                                            <strong id="buyer-verification-breakdown-score">0 / 40</strong>
+                                            <p>ID <-> Selfie Match (40% weight)</p>
+                                        </div>
+                                        <div class="verification-score-card">
+                                            <span class="result-label">Final safety score</span>
+                                            <strong id="buyer-verification-total-score">0 / 100</strong>
+                                            <p id="buyer-verification-status-text">Upload both images and run the check.</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="verification-message-stack">
+                                        <p class="inline-status" id="buyer-verification-progress-text">Upload both images, then click Verify Identity.</p>
+                                        <p class="inline-status" id="buyer-verification-loading-text"></p>
+                                    </div>
+
+                                    <div class="verification-action-row">
+                                        <button type="button" class="inline-action-btn" id="buyer-verify-identity-btn" disabled>Verify Identity</button>
+                                        <button type="button" class="inline-action-btn inline-action-btn-secondary" id="buyer-rerun-verification-btn" disabled>Re-run verification</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <button type="submit" class="submit-btn">Save Purchase Record</button>
+                        <button type="submit" class="submit-btn">Save Information &amp; Manage Post-Purchase</button>
                         <p class="status-banner" id="buyer-purchase-status"></p>
                     </form>
                 </article>
 
                 <article class="detail-card">
-                    <span class="card-kicker">Scoring guide</span>
-                    <h3>How the buyer score is calculated</h3>
+                    <span class="card-kicker">Privacy and storage</span>
+                    <h3>What is saved from this seller assessment</h3>
                     <ul class="workspace-list">
-                        <li>Full name completed: 10%</li>
-                        <li>Email completed: 10%</li>
-                        <li>Phone number completed: 15%</li>
-                        <li>Location completed: 10%</li>
-                        <li>Student number or institution completed: 10%</li>
-                        <li>At least one platform selected: 10%</li>
-                        <li>Platform link, username, or reference added: 10%</li>
-                        <li>Behaviour agreement checkboxes completed: 15%</li>
-                        <li>Verification document uploaded: 10%</li>
+                        <li>Saved to the database: seller name, seller email, seller phone number, safety score, and post-purchase status metadata.</li>
+                        <li>Not saved to the database: seller ID number, seller ID photo, seller selfie/photo, and the extra seller notes entered above.</li>
+                        <li>The ID and selfie match uses the same mock demo verification flow already used on the seller page.</li>
                     </ul>
                 </article>
             </div>
         </div>
     </section>
+
+    <div class="capture-modal" id="buyer-crop-modal" hidden>
+        <div class="capture-dialog" role="dialog" aria-modal="true" aria-labelledby="buyer-crop-modal-title">
+            <div class="capture-dialog-header">
+                <div>
+                    <p class="section-label">Image crop</p>
+                    <h3 id="buyer-crop-modal-title">Adjust your image</h3>
+                </div>
+                <button type="button" class="capture-close-btn" id="buyer-crop-cancel" aria-label="Close cropper">Close</button>
+            </div>
+            <p class="form-note capture-modal-note" id="buyer-crop-modal-note">Upload or capture an image, then drag it into the crop frame.</p>
+            <div class="capture-dialog-toolbar">
+                <button type="button" class="inline-action-btn inline-action-btn-secondary" id="buyer-crop-upload">Upload Image</button>
+                <button type="button" class="inline-action-btn" id="buyer-crop-camera">Open Camera</button>
+            </div>
+            <div class="capture-canvas-shell">
+                <canvas id="buyer-crop-canvas" width="760" height="480"></canvas>
+            </div>
+            <div class="capture-dialog-actions">
+                <button type="button" class="inline-action-btn inline-action-btn-secondary" id="buyer-crop-reset">Reset</button>
+                <button type="button" class="inline-action-btn" id="buyer-crop-save">Use Cropped Image</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="footer" id="contact">

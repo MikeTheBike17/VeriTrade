@@ -681,6 +681,10 @@ a.exit-btn:focus,
     margin: 0 auto;
 }
 
+.buyer-seller-safety-card {
+    margin-block: 20px;
+}
+
 .detail-list {
     list-style: none;
     display: grid;
@@ -1074,6 +1078,13 @@ input[readonly] {
     font-size: 18px;
 }
 
+.purchase-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+}
+
 .history-item.empty-state {
     background: #fbfcfc;
 }
@@ -1237,6 +1248,16 @@ input[readonly] {
 .seller-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 25px rgba(27, 127, 92, 0.4);
+}
+
+.risk-btn {
+    background: linear-gradient(135deg, #d64545 0%, #7a1422 100%);
+    color: #fff;
+}
+
+.risk-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(214, 69, 69, 0.35);
 }
 
 .buyer-card {

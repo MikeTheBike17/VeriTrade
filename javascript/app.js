@@ -45,7 +45,7 @@ function formatPurchaseStatusLabel(status) {
     }
 
     if (status === "not_delivered") {
-        return "Never received";
+        return "Product not received";
     }
 
     if (status === "fraud_reported") {
@@ -53,10 +53,15 @@ function formatPurchaseStatusLabel(status) {
     }
 
     if (status === "pending") {
-        return "Pending";
+        return "Pending follow-up";
     }
 
     return status ? String(status).replaceAll("_", " ") : EMPTY_LABEL;
+}
+
+function formatSafetyScore(value) {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? `${numericValue.toFixed(1)} / 100` : EMPTY_LABEL;
 }
 
 function showAlert(message) {
@@ -596,13 +601,11 @@ function renderPurchaseList(purchases) {
         return;
     }
 
-    const pendingPurchases = purchases.filter((purchase) => purchase.purchase_status === "pending");
-
-    if (!pendingPurchases.length) {
+    if (!purchases.length) {
         purchaseList.innerHTML = `
             <article class="history-item empty-state">
                 <h4>${EMPTY_LABEL}</h4>
-                <p>No pending purchases right now. New purchases saved from the Buyer page will appear here until you mark them as received or never received.</p>
+                <p>No saved seller records right now. New records from the Buyer page will appear here with their safety scores and post-purchase actions.</p>
             </article>
         `;
         return;
@@ -615,7 +618,7 @@ function renderPurchaseList(purchases) {
             .filter(Boolean)
     );
 
-    purchaseList.innerHTML = pendingPurchases
+    purchaseList.innerHTML = purchases
         .map((purchase) => {
             const warningTriggered =
                 !isPurchaseFlaggedForFutureChecks(purchase) &&
@@ -623,14 +626,16 @@ function renderPurchaseList(purchases) {
                     riskKeys.has(normalizeText(purchase.seller_email)) ||
                     riskKeys.has(normalizePhone(purchase.seller_phone))
                 );
+            const title = purchase.seller_name || purchase.product_name || "Seller record";
 
             return `
                 <article class="history-item" data-purchase-id="${escapeHtml(purchase.id)}">
                     <p class="history-date">${escapeHtml(formatDate(purchase.created_at))}</p>
-                    <h4>${escapeHtml(purchase.product_name || "Purchase")}</h4>
+                    <h4>${escapeHtml(title)}</h4>
                     <p>Seller name: ${escapeHtml(purchase.seller_name || EMPTY_LABEL)}</p>
                     <p>Seller email: ${escapeHtml(purchase.seller_email || EMPTY_LABEL)}</p>
                     <p>Seller phone: ${escapeHtml(purchase.seller_phone || EMPTY_LABEL)}</p>
+                    <p>Safety score: ${escapeHtml(formatSafetyScore(purchase.safety_score))}</p>
                     <p>Current status: ${escapeHtml(formatPurchaseStatusLabel(purchase.purchase_status))}</p>
                     ${
                         purchase.fraud_reported
@@ -642,9 +647,10 @@ function renderPurchaseList(purchases) {
                             ? '<p><strong class="result-pill medium-pill">Warning: This seller has previous non-delivery or fraud reports.</strong></p>'
                             : ""
                     }
-                    <p>
+                    <p class="purchase-action-row">
                         <button type="button" class="card-btn buyer-btn" data-purchase-action="delivered" data-purchase-id="${escapeHtml(purchase.id)}">Product Received</button>
-                        <button type="button" class="card-btn seller-btn" data-purchase-action="not-delivered" data-purchase-id="${escapeHtml(purchase.id)}">Never Received</button>
+                        <button type="button" class="card-btn seller-btn" data-purchase-action="not-delivered" data-purchase-id="${escapeHtml(purchase.id)}">Product Not Received</button>
+                        <button type="button" class="card-btn risk-btn" data-purchase-action="fraud-reported" data-purchase-id="${escapeHtml(purchase.id)}">Fraud Reported</button>
                     </p>
                 </article>
             `;
@@ -1322,6 +1328,12 @@ function bindPurchaseActions(userId) {
                 fraud_reported: false,
                 fraud_reason: null
             };
+        } else if (action === "fraud-reported") {
+            updates = {
+                purchase_status: "fraud_reported",
+                fraud_reported: true,
+                fraud_reason: null
+            };
         } else {
             return;
         }
@@ -1342,7 +1354,7 @@ function bindPurchaseActions(userId) {
             userId,
             eventType: "verification",
             title: "Purchase status updated",
-            description: `Purchase "${data.product_name}" was updated to ${formatPurchaseStatusLabel(data.purchase_status).toLowerCase()}.`
+            description: `Seller record for ${data.seller_name || data.product_name || "this seller"} was updated to ${formatPurchaseStatusLabel(data.purchase_status).toLowerCase()}.`
         });
 
         const purchases = await fetchPurchases(userId);
@@ -1977,7 +1989,7 @@ function isOtpVerifiedForValue(otpRecord, value) {
     );
 }
 
-function getSellerCropOutputConfig(targetField) {
+function getVerificationCropOutputConfig(targetField) {
     if (targetField === "id-photo") {
         return {
             aspectRatio: 1.586,
@@ -2063,23 +2075,36 @@ function getSellerVerificationOutcome(verificationResult) {
     };
 }
 
-function createSellerImageController(onStateChange) {
-    const modal = document.getElementById("seller-crop-modal");
-    const canvas = document.getElementById("seller-crop-canvas");
-    const titleElement = document.getElementById("seller-crop-modal-title");
-    const noteElement = document.getElementById("seller-crop-modal-note");
-    const cancelButton = document.getElementById("seller-crop-cancel");
-    const uploadButton = document.getElementById("seller-crop-upload");
-    const cameraButton = document.getElementById("seller-crop-camera");
-    const resetButton = document.getElementById("seller-crop-reset");
-    const saveButton = document.getElementById("seller-crop-save");
+function createVerificationImageController(prefix, onStateChange) {
+    const modal = document.getElementById(`${prefix}-crop-modal`);
+    const canvas = document.getElementById(`${prefix}-crop-canvas`);
+    const titleElement = document.getElementById(`${prefix}-crop-modal-title`);
+    const noteElement = document.getElementById(`${prefix}-crop-modal-note`);
+    const cancelButton = document.getElementById(`${prefix}-crop-cancel`);
+    const uploadButton = document.getElementById(`${prefix}-crop-upload`);
+    const cameraButton = document.getElementById(`${prefix}-crop-camera`);
+    const resetButton = document.getElementById(`${prefix}-crop-reset`);
+    const saveButton = document.getElementById(`${prefix}-crop-save`);
 
-    if (!modal || !canvas || !titleElement || !noteElement || !cancelButton || !uploadButton || !cameraButton || !resetButton || !saveButton) {
+    if (
+        !modal ||
+        !canvas ||
+        !titleElement ||
+        !noteElement ||
+        !cancelButton ||
+        !uploadButton ||
+        !cameraButton ||
+        !resetButton ||
+        !saveButton
+    ) {
         return {
             getFile() {
                 return null;
             },
             openModalForTarget() {
+                return;
+            },
+            clearAll() {
                 return;
             }
         };
@@ -2111,9 +2136,9 @@ function createSellerImageController(onStateChange) {
 
     function getPreviewElements(targetField) {
         return {
-            thumb: document.getElementById(`seller-${targetField}-preview-thumb`),
-            name: document.getElementById(`seller-${targetField}-file-name`),
-            note: document.getElementById(`seller-${targetField}-preview-note`)
+            thumb: document.getElementById(`${prefix}-${targetField}-preview-thumb`),
+            name: document.getElementById(`${prefix}-${targetField}-file-name`),
+            note: document.getElementById(`${prefix}-${targetField}-preview-note`)
         };
     }
 
@@ -2123,7 +2148,7 @@ function createSellerImageController(onStateChange) {
             return;
         }
 
-        const previewCard = document.getElementById(`seller-${targetField}-preview-card`);
+        const previewCard = document.getElementById(`${prefix}-${targetField}-preview-card`);
 
         if (state.previewUrls[targetField]) {
             URL.revokeObjectURL(state.previewUrls[targetField]);
@@ -2258,7 +2283,7 @@ function createSellerImageController(onStateChange) {
     }
 
     function openModalForTarget(targetField) {
-        const cropConfig = getSellerCropOutputConfig(targetField);
+        const cropConfig = getVerificationCropOutputConfig(targetField);
         state.activeField = targetField;
         state.aspectRatio = cropConfig.aspectRatio;
         state.outputWidth = cropConfig.width;
@@ -2379,7 +2404,7 @@ function createSellerImageController(onStateChange) {
             return;
         }
 
-        const input = document.getElementById(`seller-${state.activeField}-upload`);
+        const input = document.getElementById(`${prefix}-${state.activeField}-upload`);
         if (input) {
             input.click();
         }
@@ -2389,7 +2414,7 @@ function createSellerImageController(onStateChange) {
             return;
         }
 
-        const input = document.getElementById(`seller-${state.activeField}-camera`);
+        const input = document.getElementById(`${prefix}-${state.activeField}-camera`);
         if (input) {
             input.click();
         }
@@ -2409,7 +2434,7 @@ function createSellerImageController(onStateChange) {
 
     ["selfie", "id-photo"].forEach((targetField) => {
         ["camera", "upload"].forEach((sourceType) => {
-            const input = document.getElementById(`seller-${targetField}-${sourceType}`);
+            const input = document.getElementById(`${prefix}-${targetField}-${sourceType}`);
             if (!input) {
                 return;
             }
@@ -2430,8 +2455,26 @@ function createSellerImageController(onStateChange) {
         getFile(targetField) {
             return state.selectedFiles[targetField] || null;
         },
-        openModalForTarget
+        openModalForTarget,
+        clearAll() {
+            Object.keys(state.selectedFiles).forEach((targetField) => {
+                state.selectedFiles[targetField] = null;
+                updatePreview(targetField, null);
+            });
+
+            if (typeof onStateChange === "function") {
+                onStateChange();
+            }
+        }
     };
+}
+
+function createSellerImageController(onStateChange) {
+    return createVerificationImageController("seller", onStateChange);
+}
+
+function createBuyerImageController(onStateChange) {
+    return createVerificationImageController("buyer", onStateChange);
 }
 
 async function initUserPage(session, initialProfile) {
@@ -3348,35 +3391,291 @@ async function initBuyerPage(session) {
     }
 
     if (purchaseForm) {
+        const sellerNameInput = document.getElementById("purchase-seller-name");
+        const sellerEmailInput = document.getElementById("purchase-seller-email");
+        const sellerPhoneInput = document.getElementById("purchase-seller-phone");
+        const sellerIdNumberInput = document.getElementById("purchase-seller-id-number");
+        const selfieActivateButton = document.getElementById("buyer-selfie-activate-btn");
+        const idActivateButton = document.getElementById("buyer-id-photo-activate-btn");
+        const verifyIdentityButton = document.getElementById("buyer-verify-identity-btn");
+        const rerunVerificationButton = document.getElementById("buyer-rerun-verification-btn");
+        const verificationStatusPill = document.getElementById("buyer-verification-status-pill");
+        const verificationIdState = document.getElementById("buyer-verification-id-state");
+        const verificationSelfieState = document.getElementById("buyer-verification-selfie-state");
+        const verificationMatchState = document.getElementById("buyer-verification-match-state");
+        const verificationBreakdownScore = document.getElementById("buyer-verification-breakdown-score");
+        const verificationTotalScore = document.getElementById("buyer-verification-total-score");
+        const verificationStatusText = document.getElementById("buyer-verification-status-text");
+        const verificationProgressText = document.getElementById("buyer-verification-progress-text");
+        const verificationLoadingText = document.getElementById("buyer-verification-loading-text");
+        const verificationScoreFill = document.getElementById("buyer-verification-score-fill");
+        const imageController = createBuyerImageController(handleBuyerImageChange);
+        const verificationState = {
+            result: null,
+            isLoading: false,
+            helperMessage: ""
+        };
+
+        function setBuyerVerificationPill(status) {
+            if (!verificationStatusPill) {
+                return;
+            }
+
+            verificationStatusPill.className = "result-pill";
+
+            if (status === "verified") {
+                verificationStatusPill.classList.add("low-pill");
+                verificationStatusPill.textContent = "Verified";
+                return;
+            }
+
+            if (status === "review") {
+                verificationStatusPill.classList.add("medium-pill");
+                verificationStatusPill.textContent = "Needs Review";
+                return;
+            }
+
+            if (status === "loading") {
+                verificationStatusPill.classList.add("neutral-pill");
+                verificationStatusPill.textContent = "Verifying";
+                return;
+            }
+
+            verificationStatusPill.classList.add("neutral-pill");
+            verificationStatusPill.textContent = "Not verified";
+        }
+
+        function renderBuyerVerificationState() {
+            const hasIdPhoto = Boolean(imageController.getFile("id-photo"));
+            const hasSelfiePhoto = Boolean(imageController.getFile("selfie"));
+            const verificationResult = verificationState.result;
+            const hasVerification = Boolean(verificationResult);
+
+            if (verificationIdState) {
+                verificationIdState.textContent = hasIdPhoto ? "ID Uploaded: complete" : "ID upload pending";
+            }
+
+            if (verificationSelfieState) {
+                verificationSelfieState.textContent = hasSelfiePhoto
+                    ? "Selfie Captured: complete"
+                    : "Selfie upload pending";
+            }
+
+            if (verificationMatchState) {
+                verificationMatchState.textContent = hasVerification
+                    ? `Facial Match: ${verificationResult.match_percentage}%`
+                    : "Facial match: -";
+            }
+
+            if (verificationBreakdownScore) {
+                verificationBreakdownScore.textContent = hasVerification
+                    ? `${verificationResult.id_selfie_score.toFixed(1)} / 40`
+                    : "0 / 40";
+            }
+
+            if (verificationTotalScore) {
+                verificationTotalScore.textContent = hasVerification
+                    ? `${verificationResult.total_score.toFixed(1)} / 100`
+                    : "0 / 100";
+            }
+
+            if (verificationStatusText) {
+                verificationStatusText.textContent = hasVerification
+                    ? verificationResult.status === "verified"
+                        ? "Status: Verified"
+                        : "Status: Needs Review"
+                    : "Upload both images and run the check.";
+            }
+
+            if (verificationScoreFill) {
+                verificationScoreFill.style.width = hasVerification
+                    ? `${Math.max(0, Math.min(100, verificationResult.total_score))}%`
+                    : "0%";
+            }
+
+            if (verificationProgressText && !verificationState.isLoading) {
+                verificationProgressText.textContent = hasVerification
+                    ? verificationResult.message
+                    : verificationState.helperMessage ||
+                        (hasIdPhoto && hasSelfiePhoto
+                            ? "Both images are ready. Click Verify Identity to run the demo check."
+                            : "Upload both images, then click Verify Identity.");
+            }
+
+            if (verificationLoadingText && !verificationState.isLoading) {
+                verificationLoadingText.textContent = "";
+            }
+
+            setBuyerVerificationPill(
+                verificationState.isLoading
+                    ? "loading"
+                    : hasVerification
+                        ? verificationResult.status
+                        : "idle"
+            );
+
+            if (verifyIdentityButton) {
+                verifyIdentityButton.disabled = !hasIdPhoto || !hasSelfiePhoto || verificationState.isLoading;
+            }
+
+            if (rerunVerificationButton) {
+                rerunVerificationButton.disabled = !hasIdPhoto || !hasSelfiePhoto || verificationState.isLoading;
+            }
+        }
+
+        function clearBuyerVerification(message = "") {
+            verificationState.result = null;
+            verificationState.isLoading = false;
+            verificationState.helperMessage = message;
+
+            if (verificationLoadingText) {
+                verificationLoadingText.textContent = "";
+            }
+
+            renderBuyerVerificationState();
+        }
+
+        function handleBuyerImageChange() {
+            clearBuyerVerification("Images updated. Verify identity again to calculate a new safety score.");
+        }
+
+        async function runBuyerIdentityVerification() {
+            const selfieFile = imageController.getFile("selfie");
+            const idPhotoFile = imageController.getFile("id-photo");
+
+            if (!selfieFile || !idPhotoFile) {
+                clearBuyerVerification("Upload both images before running the identity check.");
+                return null;
+            }
+
+            verificationState.isLoading = true;
+            verificationState.result = null;
+            verificationState.helperMessage = "";
+            renderBuyerVerificationState();
+
+            if (verificationProgressText) {
+                verificationProgressText.textContent = "Verifying identity...";
+            }
+
+            if (verificationLoadingText) {
+                verificationLoadingText.textContent = "";
+            }
+
+            await delay(700);
+
+            if (verificationLoadingText) {
+                verificationLoadingText.textContent = "Checking facial match...";
+            }
+
+            await delay(900);
+
+            // Reuse the seller page demo verification flow for the buyer-side seller assessment.
+            const demoVerificationResult = await requestDemoIdentityVerification(session, {
+                selfieFile,
+                idPhotoFile
+            });
+            const verificationOutcome = getSellerVerificationOutcome(demoVerificationResult);
+
+            verificationState.result = verificationOutcome;
+            verificationState.isLoading = false;
+            verificationState.helperMessage = "";
+            renderBuyerVerificationState();
+            return verificationOutcome;
+        }
+
+        [sellerNameInput, sellerEmailInput, sellerPhoneInput, sellerIdNumberInput].forEach((input) => {
+            input?.addEventListener("input", () => {
+                setStatusMessage("buyer-purchase-status", "", "");
+            });
+        });
+
+        if (selfieActivateButton) {
+            selfieActivateButton.addEventListener("click", () => {
+                imageController.openModalForTarget("selfie");
+            });
+        }
+
+        if (idActivateButton) {
+            idActivateButton.addEventListener("click", () => {
+                imageController.openModalForTarget("id-photo");
+            });
+        }
+
+        if (verifyIdentityButton) {
+            verifyIdentityButton.addEventListener("click", () => {
+                runBuyerIdentityVerification().catch(() => {
+                    verificationState.isLoading = false;
+                    clearBuyerVerification("We could not complete the demo verification. Please try again.");
+                });
+            });
+        }
+
+        if (rerunVerificationButton) {
+            rerunVerificationButton.addEventListener("click", () => {
+                runBuyerIdentityVerification().catch(() => {
+                    verificationState.isLoading = false;
+                    clearBuyerVerification("We could not complete the demo verification. Please try again.");
+                });
+            });
+        }
+
+        renderBuyerVerificationState();
+
         purchaseForm.addEventListener("submit", async (event) => {
             event.preventDefault();
 
-            const productName = document.getElementById("purchase-product-name").value.trim();
-            const listingId = document.getElementById("purchase-listing-id").value.trim() || null;
-            const sellerName = document.getElementById("purchase-seller-name").value.trim();
-            const sellerEmail = document.getElementById("purchase-seller-email").value.trim().toLowerCase();
-            const sellerPhone = document.getElementById("purchase-seller-phone").value.trim();
+            const sellerName = sellerNameInput.value.trim();
+            const sellerEmail = sellerEmailInput.value.trim().toLowerCase();
+            const sellerPhone = sellerPhoneInput.value.trim();
+            const sellerIdNumber = sellerIdNumberInput.value.trim();
+            const selfieFile = imageController.getFile("selfie");
+            const idPhotoFile = imageController.getFile("id-photo");
+            const requiredFieldsComplete = [sellerName, sellerEmail, sellerPhone, sellerIdNumber].every(Boolean);
 
-            if (!productName || !sellerName || !sellerEmail || !sellerPhone) {
+            if (!requiredFieldsComplete || !selfieFile || !idPhotoFile) {
                 setStatusMessage(
                     "buyer-purchase-status",
-                    "Complete the product and seller contact details before saving the purchase.",
+                    "Complete the seller name, email, phone number, ID number, and both cropped images before saving this seller record.",
                     "error"
                 );
                 return;
             }
 
+            let verificationResult = verificationState.result;
+
+            if (!verificationResult) {
+                try {
+                    verificationResult = await runBuyerIdentityVerification();
+                } catch (error) {
+                    verificationState.isLoading = false;
+                    clearBuyerVerification("We could not complete the demo verification. Please try again.");
+                }
+            }
+
+            if (!verificationResult) {
+                setStatusMessage(
+                    "buyer-purchase-status",
+                    "Run the demo ID and selfie verification before saving this seller record.",
+                    "error"
+                );
+                return;
+            }
+
+            setStatusMessage("buyer-purchase-status", "Saving seller information...", "");
+
             const registeredSeller = await findRegisteredSellerByContact(sellerEmail, sellerPhone);
             const riskWarning = await hasSellerRiskWarning(sellerEmail, sellerPhone);
+            const safetyScore = Number(verificationResult.total_score.toFixed(1));
+
+            // Save only the privacy-safe seller summary fields and purchase workflow metadata.
             const purchasePayload = {
                 buyer_user_id: session.user.id,
                 seller_user_id: registeredSeller?.user_id || null,
-                listing_id: listingId,
-                product_name: productName,
                 seller_type: registeredSeller ? "Registered Seller" : "Unregistered Seller",
-                seller_name: registeredSeller?.full_name || sellerName,
-                seller_email: registeredSeller?.email || sellerEmail,
-                seller_phone: registeredSeller?.phone || sellerPhone,
+                seller_name: sellerName,
+                seller_email: sellerEmail,
+                seller_phone: sellerPhone,
+                safety_score: safetyScore,
                 purchase_status: "pending",
                 fraud_reported: false,
                 fraud_reason: null
@@ -3396,21 +3695,23 @@ async function initBuyerPage(session) {
             await createHistoryEntry({
                 userId: session.user.id,
                 eventType: "verification",
-                title: "Purchase saved",
-                description: `Purchase record saved for ${productName} with ${purchasePayload.seller_type.toLowerCase()}.`
+                title: "Seller assessment saved",
+                description: `Seller record saved for ${sellerName}. Safety score: ${formatSafetyScore(safetyScore)}.`
             });
 
             setStatusMessage(
                 "buyer-purchase-status",
                 riskWarning
-                    ? "Purchase saved. Warning: This seller has previous non-delivery or fraud reports."
+                    ? `Seller record saved successfully with a safety score of ${formatSafetyScore(safetyScore)}. Warning: This seller has previous non-delivery or fraud reports.`
                     : registeredSeller
-                        ? "Purchase record saved successfully. It now appears in Pending Purchases on your user page. Registered Seller. Purchase Confidence: 100%."
-                        : "Purchase record saved successfully. It now appears in Pending Purchases on your user page.",
-                riskWarning ? "error" : "success"
+                        ? `Seller record saved successfully. It now appears in Purchases / Post-Purchase on your user page. Registered Seller found. Safety score: ${formatSafetyScore(safetyScore)}.`
+                        : `Seller record saved successfully. It now appears in Purchases / Post-Purchase on your user page. Safety score: ${formatSafetyScore(safetyScore)}.`,
+                "success"
             );
 
             purchaseForm.reset();
+            imageController.clearAll();
+            clearBuyerVerification("Upload both images, then click Verify Identity.");
         });
     }
 }
