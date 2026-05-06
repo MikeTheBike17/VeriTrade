@@ -59,6 +59,19 @@ function formatPurchaseStatusLabel(status) {
     return status ? String(status).replaceAll("_", " ") : EMPTY_LABEL;
 }
 
+function initFooterYears() {
+    const footerYearNodes = document.querySelectorAll("[data-current-year]");
+
+    if (!footerYearNodes.length) {
+        return;
+    }
+
+    const currentYear = new Date().getFullYear();
+    footerYearNodes.forEach((node) => {
+        node.textContent = currentYear;
+    });
+}
+
 function formatSafetyScore(value) {
     const numericValue = Number(value);
     return Number.isFinite(numericValue) ? `${numericValue.toFixed(1)} / 100` : EMPTY_LABEL;
@@ -3738,6 +3751,8 @@ async function initPortalPage() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    initFooterYears();
+
     if (document.getElementById("login-form")) {
         initAuthPage();
     }
