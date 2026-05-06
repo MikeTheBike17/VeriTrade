@@ -27,6 +27,16 @@ const supabaseClient = hasSupabaseConfig
       })
     : null;
 
+const supabaseOtpClient = hasSupabaseConfig
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+          auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false
+          }
+      })
+    : null;
+
 function formatDate(dateString) {
     if (!dateString) {
         return EMPTY_LABEL;
@@ -2050,6 +2060,22 @@ function getOtpVerifyErrorMessage(error, type) {
     return message;
 }
 
+function getBuyerEmailOtpSendErrorMessage(error) {
+    const message = String(error?.message || "");
+    const normalizedMessage = message.toLowerCase();
+
+    if (
+        normalizedMessage.includes("not found") ||
+        normalizedMessage.includes("no user") ||
+        normalizedMessage.includes("signup") ||
+        normalizedMessage.includes("sign up")
+    ) {
+        return "We could not send the seller email OTP. Ask the seller to register on VeriTrade first or confirm the email address.";
+    }
+
+    return getOtpSendErrorMessage(error, "email");
+}
+
 function getVerificationCropOutputConfig(targetField) {
     if (targetField === "id-photo") {
         return {
@@ -3699,6 +3725,8 @@ async function initBuyerPage(session) {
     if (purchaseForm) {
         const sellerNameInput = document.getElementById("purchase-seller-name");
         const sellerEmailInput = document.getElementById("purchase-seller-email");
+        const sellerEmailOtpInput = document.getElementById("seller-email-otp");
+        const sellerEmailOtpSendButton = document.getElementById("seller-email-otp-send");
         const sellerPhoneInput = document.getElementById("purchase-seller-phone");
         const sellerPhoneOtpInput = document.getElementById("seller-phone-otp");
         const sellerPhoneOtpSendButton = document.getElementById("seller-phone-otp-send");
@@ -3723,11 +3751,143 @@ async function initBuyerPage(session) {
             isLoading: false,
             helperMessage: ""
         };
+        const buyerEmailOtpState = {
+            sentTo: "",
+            verified: false,
+            hasSentCode: false,
+            sendInFlight: false,
+            verifyInFlight: false
+        };
         const buyerPhoneOtpState = {
             code: null,
             sentTo: "",
             verified: false
         };
+
+        async function sendBuyerEmailOtp() {
+            const targetValue = sellerEmailInput.value.trim().toLowerCase();
+
+            if (!targetValue) {
+                setInlineStatus("seller-email-otp-status", "Enter the seller email first so we know where to send the OTP.", "error");
+                return;
+            }
+
+            buyerEmailOtpState.sentTo = targetValue;
+            buyerEmailOtpState.verified = false;
+            buyerEmailOtpState.hasSentCode = false;
+            buyerEmailOtpState.sendInFlight = true;
+            buyerEmailOtpState.verifyInFlight = false;
+            sellerEmailOtpInput.value = "";
+            sellerEmailOtpSendButton.disabled = true;
+            setInlineStatus("seller-email-otp-status", "Sending OTP to the seller email address...");
+
+            try {
+                const client = supabaseOtpClient || supabaseClient;
+                const { error } = await client.auth.signInWithOtp({
+                    email: targetValue,
+                    options: {
+                        shouldCreateUser: false
+                    }
+                });
+
+                if (error) {
+                    throw error;
+                }
+
+                buyerEmailOtpState.hasSentCode = true;
+                sellerEmailOtpSendButton.textContent = "Resend OTP";
+                setInlineStatus("seller-email-otp-status", "OTP sent to the seller email address. Enter the 6-digit code to verify it.", "success");
+            } catch (error) {
+                setInlineStatus("seller-email-otp-status", getBuyerEmailOtpSendErrorMessage(error), "error");
+            } finally {
+                buyerEmailOtpState.sendInFlight = false;
+                sellerEmailOtpSendButton.disabled = false;
+            }
+        }
+
+        function validateBuyerEmailOtp(showErrors = false) {
+            const targetValue = sellerEmailInput.value.trim().toLowerCase();
+            const enteredCode = normalizeOtpValue(sellerEmailOtpInput.value);
+            sellerEmailOtpInput.value = enteredCode;
+
+            if (isOtpVerifiedForValue(buyerEmailOtpState, targetValue, "email")) {
+                setInlineStatus("seller-email-otp-status", "Email OTP verified.", "success");
+                return true;
+            }
+
+            if (buyerEmailOtpState.verifyInFlight) {
+                if (showErrors) {
+                    setInlineStatus("seller-email-otp-status", "Verifying the seller email OTP...");
+                }
+                return false;
+            }
+
+            if (
+                !buyerEmailOtpState.hasSentCode ||
+                normalizeOtpTarget("email", buyerEmailOtpState.sentTo) !== normalizeOtpTarget("email", targetValue)
+            ) {
+                buyerEmailOtpState.verified = false;
+                if (showErrors) {
+                    setInlineStatus("seller-email-otp-status", "Send an OTP to verify the seller email address.", "error");
+                }
+                return false;
+            }
+
+            if (enteredCode.length !== OTP_LENGTH) {
+                buyerEmailOtpState.verified = false;
+                if (showErrors) {
+                    setInlineStatus("seller-email-otp-status", `Enter the full ${OTP_LENGTH}-digit OTP.`, "error");
+                }
+                return false;
+            }
+
+            buyerEmailOtpState.verified = false;
+            return false;
+        }
+
+        async function verifyBuyerEmailOtp() {
+            const targetValue = sellerEmailInput.value.trim().toLowerCase();
+            const enteredCode = normalizeOtpValue(sellerEmailOtpInput.value);
+            sellerEmailOtpInput.value = enteredCode;
+
+            if (validateBuyerEmailOtp()) {
+                return true;
+            }
+
+            if (
+                enteredCode.length !== OTP_LENGTH ||
+                buyerEmailOtpState.verifyInFlight ||
+                !buyerEmailOtpState.hasSentCode
+            ) {
+                return false;
+            }
+
+            buyerEmailOtpState.verifyInFlight = true;
+            setInlineStatus("seller-email-otp-status", "Verifying the seller email OTP...");
+
+            try {
+                const client = supabaseOtpClient || supabaseClient;
+                const { error } = await client.auth.verifyOtp({
+                    email: targetValue,
+                    token: enteredCode,
+                    type: "email"
+                });
+
+                if (error) {
+                    throw error;
+                }
+
+                buyerEmailOtpState.verified = true;
+                setInlineStatus("seller-email-otp-status", "Email OTP verified.", "success");
+                return true;
+            } catch (error) {
+                buyerEmailOtpState.verified = false;
+                setInlineStatus("seller-email-otp-status", getOtpVerifyErrorMessage(error, "email"), "error");
+                return false;
+            } finally {
+                buyerEmailOtpState.verifyInFlight = false;
+            }
+        }
 
         function sendBuyerPhoneOtp() {
             const targetValue = sellerPhoneInput.value.trim();
@@ -3956,6 +4116,35 @@ async function initBuyerPage(session) {
             input?.addEventListener("input", () => {
                 setStatusMessage("buyer-purchase-status", "", "");
             });
+        });
+
+        sellerEmailInput?.addEventListener("input", () => {
+            buyerEmailOtpState.sentTo = sellerEmailInput.value.trim().toLowerCase();
+            buyerEmailOtpState.verified = false;
+            buyerEmailOtpState.hasSentCode = false;
+            buyerEmailOtpState.sendInFlight = false;
+            buyerEmailOtpState.verifyInFlight = false;
+            if (sellerEmailOtpInput) {
+                sellerEmailOtpInput.value = "";
+            }
+            setInlineStatus("seller-email-otp-status", "Email address changed. Send a new OTP to verify it.");
+        });
+
+        sellerEmailOtpSendButton?.addEventListener("click", () => {
+            sendBuyerEmailOtp().catch((error) => {
+                buyerEmailOtpState.sendInFlight = false;
+                setInlineStatus("seller-email-otp-status", getBuyerEmailOtpSendErrorMessage(error), "error");
+            });
+        });
+
+        sellerEmailOtpInput?.addEventListener("input", () => {
+            validateBuyerEmailOtp();
+            if (normalizeOtpValue(sellerEmailOtpInput.value).length === OTP_LENGTH) {
+                verifyBuyerEmailOtp().catch((error) => {
+                    buyerEmailOtpState.verifyInFlight = false;
+                    setInlineStatus("seller-email-otp-status", getOtpVerifyErrorMessage(error, "email"), "error");
+                });
+            }
         });
 
         sellerPhoneInput?.addEventListener("input", () => {
