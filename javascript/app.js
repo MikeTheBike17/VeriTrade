@@ -1990,6 +1990,10 @@ function normalizeOtpValue(value) {
         .slice(0, OTP_LENGTH);
 }
 
+function generateOtpCode() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
 function normalizeOtpTarget(type, value) {
     return type === "phone" ? normalizePhone(value) : normalizeText(value);
 }
@@ -2636,6 +2640,7 @@ async function initSellerPage(session, initialProfile) {
             verifyInFlight: false
         },
         phone: {
+            code: null,
             sentTo: initialPhoneValue,
             verified: Boolean(
                 currentAuthUser.phone_confirmed_at &&
@@ -2718,7 +2723,7 @@ async function initSellerPage(session, initialProfile) {
             return emailInput.value.trim().toLowerCase();
         }
 
-        return normalizePhoneOtpTarget(phoneInput.value);
+        return phoneInput.value.trim();
     }
 
     async function sendOtp(type) {
@@ -2733,16 +2738,29 @@ async function initSellerPage(session, initialProfile) {
                 statusId,
                 type === "email"
                     ? "Enter your email first so we know where to send the OTP."
-                    : "Use your phone number in international format, for example +27821234567.",
+                    : "Enter your phone first so we know where to send the OTP.",
                 "error"
             );
             return;
         }
 
         if (type === "phone") {
+            otpState.phone.code = generateOtpCode();
+            otpState.phone.sentTo = targetValue;
+            otpState.phone.verified = false;
+            otpState.phone.hasSentCode = true;
+            otpState.phone.sendInFlight = false;
+            otpState.phone.verifyInFlight = false;
             phoneInput.value = targetValue;
+            phoneOtpInput.value = "";
+            setInlineStatus(statusId, "OTP sent to your phone number. Enter the 6-digit code to verify it.", "success");
+            phoneOtpSendButton.textContent = "Resend OTP";
+            showAlert(`Demo phone OTP: ${otpState.phone.code}`);
+            updateSubmitState();
+            return;
         }
 
+        setInlineStatus(statusId, `Sending OTP to your ${label}...`);
         otpState[type].verified = false;
         otpState[type].hasSentCode = false;
         otpState[type].sentTo = targetValue;
@@ -2750,8 +2768,6 @@ async function initSellerPage(session, initialProfile) {
         otpState[type].verifyInFlight = false;
         otpInput.value = "";
         sendButton.disabled = true;
-
-        setInlineStatus(statusId, `Sending OTP to your ${label}...`);
         updateSubmitState();
 
         try {
@@ -2841,12 +2857,27 @@ async function initSellerPage(session, initialProfile) {
             return false;
         }
 
+        if (type === "phone") {
+            if (enteredCode === otpState.phone.code) {
+                otpState.phone.verified = true;
+                setInlineStatus(statusId, "Phone OTP verified.", "success");
+                return true;
+            }
+
+            otpState.phone.verified = false;
+            if (showErrors) {
+                setInlineStatus(statusId, "That OTP code does not match. Use resend and try again.", "error");
+            }
+            return false;
+        }
+
         otpState[type].verified = false;
         return false;
     }
 
     function resetOtpVerification(type, message) {
         otpState[type].verified = false;
+        otpState[type].code = null;
         otpState[type].hasSentCode = false;
         otpState[type].sendInFlight = false;
         otpState[type].verifyInFlight = false;
@@ -2866,6 +2897,24 @@ async function initSellerPage(session, initialProfile) {
 
         if (validateOtpField(type)) {
             return true;
+        }
+
+        if (type === "phone") {
+            if (enteredCode.length !== OTP_LENGTH || !otpState.phone.hasSentCode) {
+                return false;
+            }
+
+            if (enteredCode === otpState.phone.code) {
+                otpState.phone.verified = true;
+                setInlineStatus(statusId, "Phone OTP verified.", "success");
+                updateSubmitState();
+                return true;
+            }
+
+            otpState.phone.verified = false;
+            setInlineStatus(statusId, "That OTP code does not match. Use resend and try again.", "error");
+            updateSubmitState();
+            return false;
         }
 
         if (enteredCode.length !== OTP_LENGTH || otpState[type].verifyInFlight || !otpState[type].hasSentCode) {
@@ -3651,6 +3700,8 @@ async function initBuyerPage(session) {
         const sellerNameInput = document.getElementById("purchase-seller-name");
         const sellerEmailInput = document.getElementById("purchase-seller-email");
         const sellerPhoneInput = document.getElementById("purchase-seller-phone");
+        const sellerPhoneOtpInput = document.getElementById("seller-phone-otp");
+        const sellerPhoneOtpSendButton = document.getElementById("seller-phone-otp-send");
         const sellerIdNumberInput = document.getElementById("purchase-seller-id-number");
         const selfieActivateButton = document.getElementById("buyer-selfie-activate-btn");
         const idActivateButton = document.getElementById("buyer-id-photo-activate-btn");
@@ -3672,6 +3723,67 @@ async function initBuyerPage(session) {
             isLoading: false,
             helperMessage: ""
         };
+        const buyerPhoneOtpState = {
+            code: null,
+            sentTo: "",
+            verified: false
+        };
+
+        function sendBuyerPhoneOtp() {
+            const targetValue = sellerPhoneInput.value.trim();
+
+            if (!targetValue) {
+                setInlineStatus("seller-phone-otp-status", "Enter the seller phone number first so we know where to send the OTP.", "error");
+                return;
+            }
+
+            buyerPhoneOtpState.code = generateOtpCode();
+            buyerPhoneOtpState.sentTo = targetValue;
+            buyerPhoneOtpState.verified = false;
+            sellerPhoneOtpInput.value = "";
+            sellerPhoneOtpSendButton.textContent = "Resend OTP";
+            setInlineStatus("seller-phone-otp-status", "OTP sent to the seller phone number. Enter the 6-digit code to verify it.", "success");
+            showAlert(`Demo phone OTP: ${buyerPhoneOtpState.code}`);
+        }
+
+        function validateBuyerPhoneOtp(showErrors = false) {
+            const targetValue = sellerPhoneInput.value.trim();
+            const enteredCode = normalizeOtpValue(sellerPhoneOtpInput.value);
+            sellerPhoneOtpInput.value = enteredCode;
+
+            if (isOtpVerifiedForValue(buyerPhoneOtpState, targetValue, "phone")) {
+                setInlineStatus("seller-phone-otp-status", "Phone OTP verified.", "success");
+                return true;
+            }
+
+            if (!buyerPhoneOtpState.code || normalizeOtpTarget("phone", buyerPhoneOtpState.sentTo) !== normalizeOtpTarget("phone", targetValue)) {
+                buyerPhoneOtpState.verified = false;
+                if (showErrors) {
+                    setInlineStatus("seller-phone-otp-status", "Send an OTP to verify the seller phone number.", "error");
+                }
+                return false;
+            }
+
+            if (enteredCode.length !== OTP_LENGTH) {
+                buyerPhoneOtpState.verified = false;
+                if (showErrors) {
+                    setInlineStatus("seller-phone-otp-status", `Enter the full ${OTP_LENGTH}-digit OTP.`, "error");
+                }
+                return false;
+            }
+
+            if (enteredCode === buyerPhoneOtpState.code) {
+                buyerPhoneOtpState.verified = true;
+                setInlineStatus("seller-phone-otp-status", "Phone OTP verified.", "success");
+                return true;
+            }
+
+            buyerPhoneOtpState.verified = false;
+            if (showErrors) {
+                setInlineStatus("seller-phone-otp-status", "That OTP code does not match. Use resend and try again.", "error");
+            }
+            return false;
+        }
 
         function setBuyerVerificationPill(status) {
             if (!verificationStatusPill) {
@@ -3844,6 +3956,24 @@ async function initBuyerPage(session) {
             input?.addEventListener("input", () => {
                 setStatusMessage("buyer-purchase-status", "", "");
             });
+        });
+
+        sellerPhoneInput?.addEventListener("input", () => {
+            buyerPhoneOtpState.code = null;
+            buyerPhoneOtpState.sentTo = sellerPhoneInput.value.trim();
+            buyerPhoneOtpState.verified = false;
+            if (sellerPhoneOtpInput) {
+                sellerPhoneOtpInput.value = "";
+            }
+            setInlineStatus("seller-phone-otp-status", "Phone number changed. Send a new OTP to verify it.");
+        });
+
+        sellerPhoneOtpSendButton?.addEventListener("click", sendBuyerPhoneOtp);
+        sellerPhoneOtpInput?.addEventListener("input", () => {
+            validateBuyerPhoneOtp();
+            if (normalizeOtpValue(sellerPhoneOtpInput.value).length === OTP_LENGTH) {
+                validateBuyerPhoneOtp(true);
+            }
         });
 
         if (selfieActivateButton) {
