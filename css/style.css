@@ -716,6 +716,10 @@ a.exit-btn:focus,
     margin-top: 18px;
 }
 
+.seller-registration-card .portal-form {
+    margin-top: 24px;
+}
+
 .portal-form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -724,17 +728,96 @@ a.exit-btn:focus,
 
 .seller-registration-grid {
     align-items: start;
+    gap: 22px;
 }
 
 .portal-form-grid-wide {
     grid-column: 1 / -1;
 }
 
+.seller-section-card {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 18px;
+    margin: 0;
+    padding: 24px;
+    border: 1px solid #dbe6e2;
+    border-radius: 22px;
+    background: linear-gradient(180deg, #fbfdfd 0%, #f4f9f7 100%);
+}
+
+.seller-section-header {
+    display: grid;
+    gap: 6px;
+}
+
+.seller-section-header h4 {
+    color: #1c2533;
+    font-size: 24px;
+    line-height: 1.2;
+}
+
+.seller-section-header .form-note {
+    margin-top: 0;
+}
+
+.seller-inline-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 20px;
+}
+
+.seller-inline-card {
+    margin: 0;
+    padding: 18px;
+    border: 1px solid #dbe6e2;
+    border-radius: 18px;
+    background: #fff;
+}
+
+.buyer-otp-section {
+    gap: 20px;
+}
+
+.buyer-otp-flow {
+    display: grid;
+    gap: 18px;
+}
+
+.buyer-otp-flow-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+    gap: 18px 20px;
+    align-items: start;
+}
+
+.buyer-otp-card {
+    display: grid;
+    gap: 10px;
+}
+
+.buyer-otp-card .inline-action-btn {
+    justify-self: start;
+}
+
+.address-container-outer {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 18px;
+}
+
+.address-container-inner {
+    border: 2px solid #c7d6d0;
+    border-radius: 20px;
+    padding: 22px;
+    background: #fff;
+}
+
 .address-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 18px 20px;
-    margin-top: 10px;
+    margin-top: 0;
 }
 
 .form-group textarea {
@@ -940,6 +1023,15 @@ input[readonly] {
     background: linear-gradient(180deg, #ffffff 0%, #f6fbf9 100%);
 }
 
+.seller-verification-shell .verification-panel {
+    background: #fff;
+}
+
+.seller-verification-shell .verification-panel-header {
+    padding-bottom: 18px;
+    border-bottom: 1px solid #e3ece8;
+}
+
 .verification-panel-header {
     display: flex;
     justify-content: space-between;
@@ -964,6 +1056,31 @@ input[readonly] {
     font-weight: 600;
 }
 
+.seller-verification-upload-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 20px;
+    margin-top: 22px;
+}
+
+.seller-upload-step {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+}
+
+.seller-upload-step .upload-panel {
+    height: 100%;
+}
+
+.seller-upload-state {
+    margin-top: 0;
+}
+
+.seller-verification-summary {
+    margin-top: 22px;
+}
+
 .verification-score-bar {
     margin-top: 18px;
 }
@@ -982,6 +1099,10 @@ input[readonly] {
     background: #fff;
 }
 
+.verification-score-card-full {
+    grid-column: 1 / -1;
+}
+
 .verification-score-card strong {
     display: block;
     color: #1c2533;
@@ -993,6 +1114,21 @@ input[readonly] {
 .verification-score-card p {
     color: #5e6a7b;
     line-height: 1.7;
+}
+
+.buyer-safety-score-wrap {
+    grid-column: 1 / -1;
+    margin-top: 2px;
+    padding-bottom: 14px;
+}
+
+.buyer-safety-score-grid {
+    margin-top: 0;
+}
+
+.buyer-safety-score-card {
+    width: 100%;
+    max-width: none;
 }
 
 .verification-message-stack {
@@ -1745,6 +1881,12 @@ input[readonly] {
         display: grid;
     }
 
+    .seller-inline-grid,
+    .buyer-otp-flow-row,
+    .seller-verification-upload-grid {
+        grid-template-columns: 1fr;
+    }
+
     .capture-preview-card {
         grid-template-columns: 1fr;
     }
@@ -1801,6 +1943,12 @@ input[readonly] {
 
     .portal-form-grid {
         grid-template-columns: 1fr;
+    }
+
+    .seller-section-card,
+    .address-container-inner,
+    .seller-inline-card {
+        padding: 20px;
     }
 
     .address-grid {

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - Buyer Portal</title>
-    <link rel="stylesheet" href="css/style.css?v=20260506-1">
+    <link rel="stylesheet" href="css/style.css?v=20260506-3">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="javascript/app.js?v=20260506-1" defer></script>
 </head>
@@ -62,19 +62,40 @@
                         <div class="portal-form-grid seller-registration-grid">
                             <div class="form-group">
                                 <label for="purchase-seller-name">Seller Full Name</label>
-                                <input type="text" id="purchase-seller-name" placeholder="Enter the seller full name" required>
+                                <input type="text" id="purchase-seller-name" placeholder="Enter the seller's full name" required>
                             </div>
-                            <div class="form-group">
-                                <label for="purchase-seller-email">Seller Email Address</label>
-                                <input type="email" id="purchase-seller-email" placeholder="Enter the seller email address" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="purchase-seller-phone">Seller Phone Number</label>
-                                <input type="text" id="purchase-seller-phone" placeholder="Enter the seller phone number" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="purchase-seller-id-number">Seller ID Number</label>
-                                <input type="text" id="purchase-seller-id-number" placeholder="Enter the seller ID number" required>
+                            <div class="form-group portal-form-grid-wide seller-section-card buyer-otp-section">
+                                <div class="seller-section-header">
+                                    <p class="section-label">Contact verification</p>
+                                    <h4>Match the seller contact details and OTPs</h4>
+                                    <p class="form-note">Keep each contact detail paired with its OTP so the buyer verification flow is easier to read and complete.</p>
+                                </div>
+                                <div class="buyer-otp-flow">
+                                    <div class="buyer-otp-flow-row">
+                                        <div class="form-group">
+                                            <label for="purchase-seller-email">Seller Email Address</label>
+                                            <input type="email" id="purchase-seller-email" placeholder="Enter the seller's email address" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="purchase-seller-phone">Seller Phone Number</label>
+                                            <input type="text" id="purchase-seller-phone" placeholder="Enter the seller's phone number" required>
+                                        </div>
+                                    </div>
+                                    <div class="buyer-otp-flow-row">
+                                        <div class="seller-inline-card buyer-otp-card">
+                                            <label for="seller-email-otp">OTP for Email</label>
+                                            <input type="text" id="seller-email-otp" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit email OTP" required>
+                                            <button type="button" class="inline-action-btn" id="seller-email-otp-send">Send OTP</button>
+                                            <p class="inline-status" id="seller-email-otp-status">Send a code to verify your email address.</p>
+                                        </div>
+                                        <div class="seller-inline-card buyer-otp-card">
+                                            <label for="seller-phone-otp">OTP for Phone</label>
+                                            <input type="text" id="seller-phone-otp" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit phone OTP" required>
+                                            <button type="button" class="inline-action-btn" id="seller-phone-otp-send">Send OTP</button>
+                                            <p class="inline-status" id="seller-phone-otp-status">Send a code to verify your phone number.</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label for="purchase-seller-social-handle">Seller Social Handle <span class="input-optional">(Optional)</span></label>
@@ -88,84 +109,74 @@
                                 <label for="purchase-business-name">Business Name <span class="input-optional">(Optional)</span></label>
                                 <input type="text" id="purchase-business-name" placeholder="Optional store or business name">
                             </div>
-                            <div class="form-group">
-                                <label for="purchase-bank-account-holder">Bank Account Holder Name <span class="input-optional">(Optional)</span></label>
-                                <input type="text" id="purchase-bank-account-holder" placeholder="Optional account holder name">
-                            </div>
                             <div class="form-group portal-form-grid-wide">
                                 <label for="purchase-seller-notes">Additional Seller Notes <span class="input-optional">(Optional)</span></label>
-                                <textarea id="purchase-seller-notes" rows="4" placeholder="Add any public marketplace or communication notes that help you keep track of this seller."></textarea>
+                                <textarea id="purchase-seller-notes" rows="4" placeholder="Add any public marketplace or communication notes that help you keep track of this seller. For example; Facebook, Washing Machine."></textarea>
                             </div>
 
-                            <div class="form-group portal-form-grid-wide">
-                                <div class="upload-panel">
-                                    <div class="upload-panel-copy">
-                                        <label for="buyer-selfie-upload">Seller Selfie / Photo Upload</label>
-                                        <p class="form-note">The seller selfie or portrait photo is only used for the demo ID match and is not stored.</p>
-                                    </div>
-                                    <button type="button" class="inline-action-btn" id="buyer-selfie-activate-btn">Upload Seller Selfie</button>
-                                    <input type="file" id="buyer-selfie-camera" accept="image/*" capture="user" hidden>
-                                    <input type="file" id="buyer-selfie-upload" accept="image/*" hidden>
-                                    <div class="capture-preview-card" id="buyer-selfie-preview-card" hidden>
-                                        <div class="capture-preview-thumb" id="buyer-selfie-preview-thumb"></div>
-                                        <div class="capture-preview-copy">
-                                            <strong id="buyer-selfie-file-name">No selfie selected</strong>
-                                            <p id="buyer-selfie-preview-note">A cropped selfie preview will appear here.</p>
-                                        </div>
-                                    </div>
+                            <div class="form-group portal-form-grid-wide seller-section-card seller-verification-shell">
+                                <div class="seller-section-header">
+                                    <p class="section-label">Identity verification</p>
+                                    <h4>Check whether the seller ID photo matches the selfie</h4>
+                                    <p class="form-note">Upload both images, review the previews, and run the same demo verification flow used elsewhere on VeriTrade.</p>
                                 </div>
-                            </div>
-
-                            <div class="form-group portal-form-grid-wide">
-                                <div class="upload-panel">
-                                    <div class="upload-panel-copy">
-                                        <label for="buyer-id-photo-upload">Seller ID Photo Upload</label>
-                                        <p class="form-note">The seller ID photo is only used for the demo check and is not stored.</p>
-                                    </div>
-                                    <button type="button" class="inline-action-btn" id="buyer-id-photo-activate-btn">Upload Seller ID Photo</button>
-                                    <input type="file" id="buyer-id-photo-camera" accept="image/*" capture="environment" hidden>
-                                    <input type="file" id="buyer-id-photo-upload" accept="image/*" hidden>
-                                    <div class="capture-preview-card" id="buyer-id-photo-preview-card" hidden>
-                                        <div class="capture-preview-thumb" id="buyer-id-photo-preview-thumb"></div>
-                                        <div class="capture-preview-copy">
-                                            <strong id="buyer-id-photo-file-name">No ID photo selected</strong>
-                                            <p id="buyer-id-photo-preview-note">A cropped ID preview will appear here.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="form-group portal-form-grid-wide">
                                 <div class="verification-panel">
                                     <div class="verification-panel-header">
                                         <div>
-                                            <p class="section-label">Identity verification</p>
-                                            <h4>Check whether the seller ID photo matches the selfie</h4>
+                                            <p class="section-label">Verification status</p>
+                                            <h4>Identity check</h4>
                                         </div>
                                         <span class="result-pill neutral-pill" id="buyer-verification-status-pill">Not verified</span>
                                     </div>
 
-                                    <div class="verification-checklist">
-                                        <p id="buyer-verification-id-state">ID upload pending</p>
-                                        <p id="buyer-verification-selfie-state">Selfie upload pending</p>
+                                    <div class="seller-verification-upload-grid">
+                                        <div class="seller-upload-step">
+                                            <div class="upload-panel">
+                                                <div class="upload-panel-copy">
+                                                    <label for="buyer-selfie-upload">Seller Selfie / Photo Upload</label>
+                                                    <p class="form-note">The seller selfie or portrait photo is only used for the demo ID match and is not stored.</p>
+                                                </div>
+                                                <button type="button" class="inline-action-btn" id="buyer-selfie-activate-btn">Upload Seller Selfie</button>
+                                                <input type="file" id="buyer-selfie-camera" accept="image/*" capture="user" hidden>
+                                                <input type="file" id="buyer-selfie-upload" accept="image/*" hidden>
+                                                <div class="capture-preview-card" id="buyer-selfie-preview-card" hidden>
+                                                    <div class="capture-preview-thumb" id="buyer-selfie-preview-thumb"></div>
+                                                    <div class="capture-preview-copy">
+                                                        <strong id="buyer-selfie-file-name">No selfie selected</strong>
+                                                        <p id="buyer-selfie-preview-note">A cropped selfie preview will appear here.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p class="inline-status seller-upload-state" id="buyer-verification-selfie-state">Selfie upload pending</p>
+                                        </div>
+
+                                        <div class="seller-upload-step">
+                                            <div class="upload-panel">
+                                                <div class="upload-panel-copy">
+                                                    <label for="buyer-id-photo-upload">Seller ID Photo Upload</label>
+                                                    <p class="form-note">The seller ID photo is only used for the demo check and is not stored.</p>
+                                                </div>
+                                                <button type="button" class="inline-action-btn" id="buyer-id-photo-activate-btn">Upload Seller ID Photo</button>
+                                                <input type="file" id="buyer-id-photo-camera" accept="image/*" capture="environment" hidden>
+                                                <input type="file" id="buyer-id-photo-upload" accept="image/*" hidden>
+                                                <div class="capture-preview-card" id="buyer-id-photo-preview-card" hidden>
+                                                    <div class="capture-preview-thumb" id="buyer-id-photo-preview-thumb"></div>
+                                                    <div class="capture-preview-copy">
+                                                        <strong id="buyer-id-photo-file-name">No ID photo selected</strong>
+                                                        <p id="buyer-id-photo-preview-note">A cropped ID preview will appear here.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p class="inline-status seller-upload-state" id="buyer-verification-id-state">ID upload pending</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="verification-checklist seller-verification-summary">
                                         <p id="buyer-verification-match-state">Facial match: -</p>
                                     </div>
 
                                     <div class="metric-bar verification-score-bar">
                                         <span class="metric-fill" id="buyer-verification-score-fill" style="width: 0%"></span>
-                                    </div>
-
-                                    <div class="verification-score-grid">
-                                        <div class="verification-score-card">
-                                            <span class="result-label">Score breakdown</span>
-                                            <strong id="buyer-verification-breakdown-score">0 / 40</strong>
-                                            <p>ID <-> Selfie Match (40% weight)</p>
-                                        </div>
-                                        <div class="verification-score-card">
-                                            <span class="result-label">Final safety score</span>
-                                            <strong id="buyer-verification-total-score">0 / 100</strong>
-                                            <p id="buyer-verification-status-text">Upload both images and run the check.</p>
-                                        </div>
                                     </div>
 
                                     <div class="verification-message-stack">
@@ -175,7 +186,16 @@
 
                                     <div class="verification-action-row">
                                         <button type="button" class="inline-action-btn" id="buyer-verify-identity-btn" disabled>Verify Identity</button>
-                                        <button type="button" class="inline-action-btn inline-action-btn-secondary" id="buyer-rerun-verification-btn" disabled>Re-run verification</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="buyer-safety-score-wrap">
+                                <div class="verification-score-grid buyer-safety-score-grid">
+                                    <div class="verification-score-card verification-score-card-full buyer-safety-score-card">
+                                    <span class="result-label">Final safety score</span>
+                                    <strong id="buyer-verification-total-score">0 / 100</strong>
+                                    <p id="buyer-verification-status-text">Upload both images and run the check.</p>
                                     </div>
                                 </div>
                             </div>
