@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - Buyer Portal</title>
-    <link rel="stylesheet" href="css/style.css?v=20260506-3">
+    <link rel="stylesheet" href="css/style.css?v=20260506-4">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="javascript/app.js?v=20260506-1" defer></script>
 </head>
@@ -31,6 +31,7 @@
                     <li><a href="user.html">Admin</a></li>
                     <li><a href="seller.html">Seller</a></li>
                     <li><a href="buyer.html" class="active">Buyer</a></li>
+                    <li><a href="terms.html">T&amp;Cs</a></li>
                 </ul>
                 <a href="index.html" class="exit-btn" id="logout-btn" data-signout-link>Log Out</a>
             </div>
@@ -204,16 +205,6 @@
                         <button type="submit" class="submit-btn">Save Information &amp; Manage Post-Purchase</button>
                         <p class="status-banner" id="buyer-purchase-status"></p>
                     </form>
-                </article>
-
-                <article class="detail-card">
-                    <span class="card-kicker">Privacy and storage</span>
-                    <h3>What is saved from this seller assessment</h3>
-                    <ul class="workspace-list">
-                        <li>Saved to the database: seller name, seller email, seller phone number, safety score, and post-purchase status metadata.</li>
-                        <li>Not saved to the database: seller ID number, seller ID photo, seller selfie/photo, and the extra seller notes entered above.</li>
-                        <li>The ID and selfie match uses the same mock demo verification flow already used on the seller page.</li>
-                    </ul>
                 </article>
             </div>
         </div>
