@@ -1990,16 +1990,60 @@ function normalizeOtpValue(value) {
         .slice(0, OTP_LENGTH);
 }
 
-function generateOtpCode() {
-    return String(Math.floor(100000 + Math.random() * 900000));
+function normalizeOtpTarget(type, value) {
+    return type === "phone" ? normalizePhone(value) : normalizeText(value);
 }
 
-function isOtpVerifiedForValue(otpRecord, value) {
+function normalizePhoneOtpTarget(value) {
+    const compactValue = String(value || "")
+        .trim()
+        .replace(/[\s().-]/g, "");
+
+    return /^\+[1-9]\d{7,14}$/.test(compactValue) ? compactValue : "";
+}
+
+function isOtpVerifiedForValue(otpRecord, value, type = "email") {
     return Boolean(
         otpRecord &&
             otpRecord.verified &&
-            normalizeText(otpRecord.sentTo) === normalizeText(value)
+            normalizeOtpTarget(type, otpRecord.sentTo) === normalizeOtpTarget(type, value)
     );
+}
+
+function getOtpSendErrorMessage(error, type) {
+    const fallbackMessage = `We could not send the ${type} OTP. Please try again.`;
+    const message = String(error?.message || fallbackMessage);
+    const normalizedMessage = message.toLowerCase();
+
+    if (normalizedMessage.includes("rate limit")) {
+        return `Please wait before requesting another ${type} OTP.`;
+    }
+
+    if (type === "email" && normalizedMessage.includes("not authorized")) {
+        return "Supabase blocked that email send. Add custom SMTP or use an authorized team email while testing.";
+    }
+
+    if (type === "phone" && (normalizedMessage.includes("provider") || normalizedMessage.includes("sms"))) {
+        return "Configure a phone auth provider in Supabase before sending SMS OTPs.";
+    }
+
+    return message;
+}
+
+function getOtpVerifyErrorMessage(error, type) {
+    const fallbackMessage = `We could not verify that ${type} OTP. Please try again.`;
+    const message = String(error?.message || fallbackMessage);
+    const normalizedMessage = message.toLowerCase();
+
+    if (normalizedMessage.includes("expired") || normalizedMessage.includes("invalid")) {
+        return "That OTP is invalid or has expired. Send a new code and try again.";
+    }
+
+    if (normalizedMessage.includes("rate limit")) {
+        return "Too many verification attempts. Please wait a moment and try again.";
+    }
+
+    return message;
 }
 
 function getVerificationCropOutputConfig(targetField) {
@@ -2538,7 +2582,8 @@ async function initSellerPage(session, initialProfile) {
         return;
     }
 
-    const profile = initialProfile || getBaseProfileFromUser(session.user);
+    let currentAuthUser = session.user;
+    const profile = initialProfile || getBaseProfileFromUser(currentAuthUser);
     const existingSellerProfile = await fetchSellerProfile(session.user.id);
     const fullNameInput = document.getElementById("seller-full-name");
     const emailInput = document.getElementById("seller-email");
@@ -2567,6 +2612,8 @@ async function initSellerPage(session, initialProfile) {
     const verificationProgressText = document.getElementById("seller-verification-progress-text");
     const verificationLoadingText = document.getElementById("seller-verification-loading-text");
     const verificationScoreFill = document.getElementById("seller-verification-score-fill");
+    const initialEmailValue = currentAuthUser.email || profile.auth_email || existingSellerProfile?.email || "";
+    const initialPhoneValue = profile.phone_number || existingSellerProfile?.phone || currentAuthUser.phone || "";
     const selectedPlatforms = Array.isArray(existingSellerProfile?.selling_platforms)
         ? existingSellerProfile.selling_platforms
         : Array.isArray(profile?.linked_marketplaces)
@@ -2579,36 +2626,49 @@ async function initSellerPage(session, initialProfile) {
     };
     const otpState = {
         email: {
-            code: null,
-            sentTo: profile.auth_email || existingSellerProfile?.email || session.user.email || "",
-            verified: profile.otp_alerts === true
+            sentTo: initialEmailValue,
+            verified: Boolean(
+                currentAuthUser.email_confirmed_at &&
+                    normalizeOtpTarget("email", currentAuthUser.email) === normalizeOtpTarget("email", initialEmailValue)
+            ),
+            hasSentCode: false,
+            sendInFlight: false,
+            verifyInFlight: false
         },
         phone: {
-            code: null,
-            sentTo: profile.phone_number || existingSellerProfile?.phone || "",
-            verified: profile.otp_alerts === true && Boolean(profile.phone_number || existingSellerProfile?.phone)
+            sentTo: initialPhoneValue,
+            verified: Boolean(
+                currentAuthUser.phone_confirmed_at &&
+                    normalizeOtpTarget("phone", currentAuthUser.phone) === normalizeOtpTarget("phone", initialPhoneValue)
+            ),
+            hasSentCode: false,
+            sendInFlight: false,
+            verifyInFlight: false
         }
     };
     const imageController = createSellerImageController(handleSellerImageChange);
 
     fullNameInput.value =
-        existingSellerProfile?.full_name || profile.full_name || session.user.user_metadata?.full_name || "";
-    emailInput.value = profile.auth_email || existingSellerProfile?.email || session.user.email || "";
-    phoneInput.value = profile.phone_number || existingSellerProfile?.phone || "";
+        existingSellerProfile?.full_name || profile.full_name || currentAuthUser.user_metadata?.full_name || "";
+    emailInput.value = initialEmailValue;
+    phoneInput.value = initialPhoneValue;
     socialHandleInput.value = "";
     addressStreetInput.value = "";
     addressCityInput.value = "";
     addressProvinceInput.value = "";
     addressPostalCodeInput.value = "";
 
+    otpState.email.hasSentCode = otpState.email.verified;
+    otpState.phone.hasSentCode = otpState.phone.verified;
+
     if (otpState.email.verified) {
-        setInlineStatus("seller-email-otp-status", "Email already verified for OTP alerts.", "success");
+        setInlineStatus("seller-email-otp-status", "Email already verified on your account.", "success");
         emailOtpInput.value = "000000";
         emailOtpSendButton.textContent = "Resend OTP";
     }
 
     if (otpState.phone.verified) {
-        setInlineStatus("seller-phone-otp-status", "Phone already verified for OTP alerts.", "success");
+        setInlineStatus("seller-phone-otp-status", "Phone already verified on your account.", "success");
         phoneOtpInput.value = "000000";
         phoneOtpSendButton.textContent = "Resend OTP";
     }
@@ -2619,36 +2679,127 @@ async function initSellerPage(session, initialProfile) {
 
     renderSellerStatusSummary(existingSellerProfile, session.user);
 
-    function sendOtp(type) {
-        const targetValue = type === "email" ? emailInput.value.trim().toLowerCase() : phoneInput.value.trim();
-        const label = type === "email" ? "email" : "phone";
+    async function refreshCurrentAuthUser() {
+        if (!supabaseClient) {
+            return currentAuthUser;
+        }
+
+        const {
+            data: { user }
+        } = await supabaseClient.auth.getUser();
+
+        if (user) {
+            currentAuthUser = user;
+        }
+
+        return currentAuthUser;
+    }
+
+    function isAuthContactVerified(type, value) {
+        if (!currentAuthUser) {
+            return false;
+        }
+
+        if (type === "email") {
+            return Boolean(
+                currentAuthUser.email_confirmed_at &&
+                    normalizeOtpTarget("email", currentAuthUser.email) === normalizeOtpTarget("email", value)
+            );
+        }
+
+        return Boolean(
+            currentAuthUser.phone_confirmed_at &&
+                normalizeOtpTarget("phone", currentAuthUser.phone) === normalizeOtpTarget("phone", value)
+        );
+    }
+
+    function getOtpTargetValue(type) {
+        if (type === "email") {
+            return emailInput.value.trim().toLowerCase();
+        }
+
+        return normalizePhoneOtpTarget(phoneInput.value);
+    }
+
+    async function sendOtp(type) {
+        const statusId = type === "email" ? "seller-email-otp-status" : "seller-phone-otp-status";
+        const otpInput = type === "email" ? emailOtpInput : phoneOtpInput;
+        const sendButton = type === "email" ? emailOtpSendButton : phoneOtpSendButton;
+        const label = type === "email" ? "email address" : "phone number";
+        const targetValue = getOtpTargetValue(type);
 
         if (!targetValue) {
             setInlineStatus(
-                type === "email" ? "seller-email-otp-status" : "seller-phone-otp-status",
-                `Enter your ${label} first so we know where to send the OTP.`,
+                statusId,
+                type === "email"
+                    ? "Enter your email first so we know where to send the OTP."
+                    : "Use your phone number in international format, for example +27821234567.",
                 "error"
             );
             return;
         }
 
-        otpState[type].code = generateOtpCode();
-        otpState[type].sentTo = targetValue;
-        otpState[type].verified = false;
-        setInlineStatus(
-            type === "email" ? "seller-email-otp-status" : "seller-phone-otp-status",
-            `OTP sent to your ${label}. Enter the 6-digit code to verify it.`,
-            "success"
-        );
-
-        if (type === "email") {
-            emailOtpSendButton.textContent = "Resend OTP";
-        } else {
-            phoneOtpSendButton.textContent = "Resend OTP";
+        if (type === "phone") {
+            phoneInput.value = targetValue;
         }
 
-        showAlert(`Demo ${label} OTP: ${otpState[type].code}`);
+        otpState[type].verified = false;
+        otpState[type].hasSentCode = false;
+        otpState[type].sentTo = targetValue;
+        otpState[type].sendInFlight = true;
+        otpState[type].verifyInFlight = false;
+        otpInput.value = "";
+        sendButton.disabled = true;
+
+        setInlineStatus(statusId, `Sending OTP to your ${label}...`);
         updateSubmitState();
+
+        try {
+            if (type === "email") {
+                const { error } = await supabaseClient.auth.signInWithOtp({
+                    email: targetValue,
+                    options: {
+                        shouldCreateUser: false
+                    }
+                });
+
+                if (error) {
+                    throw error;
+                }
+            } else {
+                if (isAuthContactVerified("phone", targetValue)) {
+                    otpState.phone.verified = true;
+                    otpState.phone.hasSentCode = true;
+                    phoneOtpInput.value = "000000";
+                    setInlineStatus(statusId, "Phone already verified on your account.", "success");
+                    updateSubmitState();
+                    return;
+                }
+
+                const { data, error } = await supabaseClient.auth.updateUser({
+                    phone: targetValue
+                });
+
+                if (error) {
+                    throw error;
+                }
+
+                if (data?.user) {
+                    currentAuthUser = data.user;
+                }
+            }
+
+            otpState[type].hasSentCode = true;
+            setInlineStatus(statusId, `OTP sent to your ${label}. Enter the 6-digit code to verify it.`, "success");
+            sendButton.textContent = "Resend OTP";
+            otpInput.focus();
+        } catch (error) {
+            setInlineStatus(statusId, getOtpSendErrorMessage(error, type), "error");
+        } finally {
+            otpState[type].sendInFlight = false;
+            sendButton.disabled = false;
+            updateSubmitState();
+        }
     }
 
     function validateOtpField(type, showErrors = false) {
@@ -2659,12 +2810,22 @@ async function initSellerPage(session, initialProfile) {
 
         otpInput.value = enteredCode;
 
-        if (isOtpVerifiedForValue(otpState[type], targetValue)) {
+        if (isOtpVerifiedForValue(otpState[type], targetValue, type)) {
             setInlineStatus(statusId, `${type === "email" ? "Email" : "Phone"} OTP verified.`, "success");
             return true;
         }
 
-        if (!otpState[type].code || normalizeText(otpState[type].sentTo) !== normalizeText(targetValue)) {
+        if (otpState[type].verifyInFlight) {
+            if (showErrors) {
+                setInlineStatus(statusId, `Verifying your ${type} OTP...`);
+            }
+            return false;
+        }
+
+        if (
+            !otpState[type].hasSentCode ||
+            normalizeOtpTarget(type, otpState[type].sentTo) !== normalizeOtpTarget(type, targetValue)
+        ) {
             otpState[type].verified = false;
             if (showErrors) {
                 setInlineStatus(statusId, `Send an OTP to verify your ${type}.`, "error");
@@ -2680,27 +2841,84 @@ async function initSellerPage(session, initialProfile) {
             return false;
         }
 
-        if (enteredCode === otpState[type].code) {
-            otpState[type].verified = true;
-            setInlineStatus(statusId, `${type === "email" ? "Email" : "Phone"} OTP verified.`, "success");
-            return true;
-        }
-
         otpState[type].verified = false;
-        if (showErrors) {
-            setInlineStatus(statusId, "That OTP code does not match. Use resend and try again.", "error");
-        }
-
         return false;
     }
 
     function resetOtpVerification(type, message) {
         otpState[type].verified = false;
-        otpState[type].code = null;
+        otpState[type].hasSentCode = false;
+        otpState[type].sendInFlight = false;
+        otpState[type].verifyInFlight = false;
         otpState[type].sentTo = type === "email" ? emailInput.value.trim().toLowerCase() : phoneInput.value.trim();
         const otpInput = type === "email" ? emailOtpInput : phoneOtpInput;
         otpInput.value = "";
         setInlineStatus(type === "email" ? "seller-email-otp-status" : "seller-phone-otp-status", message);
+    }
+
+    async function verifyOtpCode(type) {
+        const otpInput = type === "email" ? emailOtpInput : phoneOtpInput;
+        const targetValue = type === "email" ? emailInput.value.trim().toLowerCase() : phoneInput.value.trim();
+        const statusId = type === "email" ? "seller-email-otp-status" : "seller-phone-otp-status";
+        const enteredCode = normalizeOtpValue(otpInput.value);
+
+        otpInput.value = enteredCode;
+
+        if (validateOtpField(type)) {
+            return true;
+        }
+
+        if (enteredCode.length !== OTP_LENGTH || otpState[type].verifyInFlight || !otpState[type].hasSentCode) {
+            return false;
+        }
+
+        otpState[type].verifyInFlight = true;
+        setInlineStatus(statusId, `Verifying your ${type} OTP...`);
+        updateSubmitState();
+
+        try {
+            const { data, error } = await supabaseClient.auth.verifyOtp(
+                type === "email"
+                    ? {
+                          email: targetValue,
+                          token: enteredCode,
+                          type: "email"
+                      }
+                    : {
+                          phone: otpState[type].sentTo,
+                          token: enteredCode,
+                          type: "phone_change"
+                      }
+            );
+
+            if (error) {
+                throw error;
+            }
+
+            if (data?.user) {
+                currentAuthUser = data.user;
+            } else {
+                await refreshCurrentAuthUser();
+            }
+
+            otpState[type].verified = true;
+
+            if (type === "phone" && currentAuthUser?.phone) {
+                otpState.phone.sentTo = currentAuthUser.phone;
+                phoneInput.value = currentAuthUser.phone;
+            }
+
+            setInlineStatus(statusId, `${type === "email" ? "Email" : "Phone"} OTP verified.`, "success");
+            updateSubmitState();
+            return true;
+        } catch (error) {
+            otpState[type].verified = false;
+            setInlineStatus(statusId, getOtpVerifyErrorMessage(error, type), "error");
+            return false;
+        } finally {
+            otpState[type].verifyInFlight = false;
+            updateSubmitState();
+        }
     }
 
     function getSellerAddressValue() {
@@ -2871,15 +3089,41 @@ async function initSellerPage(session, initialProfile) {
         }
     }
 
-    emailOtpSendButton.addEventListener("click", () => sendOtp("email"));
-    phoneOtpSendButton.addEventListener("click", () => sendOtp("phone"));
+    emailOtpSendButton.addEventListener("click", () => {
+        sendOtp("email").catch((error) => {
+            setInlineStatus("seller-email-otp-status", getOtpSendErrorMessage(error, "email"), "error");
+            otpState.email.sendInFlight = false;
+            updateSubmitState();
+        });
+    });
+    phoneOtpSendButton.addEventListener("click", () => {
+        sendOtp("phone").catch((error) => {
+            setInlineStatus("seller-phone-otp-status", getOtpSendErrorMessage(error, "phone"), "error");
+            otpState.phone.sendInFlight = false;
+            updateSubmitState();
+        });
+    });
     emailOtpInput.addEventListener("input", () => {
         validateOtpField("email");
         updateSubmitState();
+        if (normalizeOtpValue(emailOtpInput.value).length === OTP_LENGTH) {
+            verifyOtpCode("email").catch((error) => {
+                otpState.email.verifyInFlight = false;
+                setInlineStatus("seller-email-otp-status", getOtpVerifyErrorMessage(error, "email"), "error");
+                updateSubmitState();
+            });
+        }
     });
     phoneOtpInput.addEventListener("input", () => {
         validateOtpField("phone");
         updateSubmitState();
+        if (normalizeOtpValue(phoneOtpInput.value).length === OTP_LENGTH) {
+            verifyOtpCode("phone").catch((error) => {
+                otpState.phone.verifyInFlight = false;
+                setInlineStatus("seller-phone-otp-status", getOtpVerifyErrorMessage(error, "phone"), "error");
+                updateSubmitState();
+            });
+        }
     });
     phoneInput.addEventListener("input", () => {
         resetOtpVerification("phone", "Phone number changed. Send a new OTP to verify it.");
