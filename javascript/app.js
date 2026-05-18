@@ -28,16 +28,45 @@ const supabaseClient = hasSupabaseConfig
       })
     : null;
 
-const supabaseOtpClient = hasSupabaseConfig
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-          auth: {
-              storageKey: OTP_AUTH_STORAGE_KEY,
-              persistSession: false,
-              autoRefreshToken: false,
-              detectSessionInUrl: false
-          }
-      })
-    : null;
+let supabaseOtpClient = null;
+
+function createMemoryStorage() {
+    const storageMap = new Map();
+
+    return {
+        getItem(key) {
+            return storageMap.has(key) ? storageMap.get(key) : null;
+        },
+        setItem(key, value) {
+            storageMap.set(key, value);
+        },
+        removeItem(key) {
+            storageMap.delete(key);
+        }
+    };
+}
+
+function getSupabaseOtpClient() {
+    if (!hasSupabaseConfig || !window.supabase) {
+        return null;
+    }
+
+    if (supabaseOtpClient) {
+        return supabaseOtpClient;
+    }
+
+    supabaseOtpClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+        auth: {
+            storageKey: OTP_AUTH_STORAGE_KEY,
+            storage: createMemoryStorage(),
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+        }
+    });
+
+    return supabaseOtpClient;
+}
 
 function formatDate(dateString) {
     if (!dateString) {
@@ -3168,7 +3197,8 @@ async function initSellerPage(session, initialProfile) {
 
         try {
             if (type === "email") {
-                const { error } = await supabaseClient.auth.signInWithOtp({
+                const emailOtpClient = getSupabaseOtpClient() || supabaseClient;
+                const { error } = await emailOtpClient.auth.signInWithOtp({
                     email: targetValue,
                     options: {
                         shouldCreateUser: false
@@ -3322,7 +3352,8 @@ async function initSellerPage(session, initialProfile) {
         updateSubmitState();
 
         try {
-            const { data, error } = await supabaseClient.auth.verifyOtp(
+            const authClient = type === "email" ? getSupabaseOtpClient() || supabaseClient : supabaseClient;
+            const { data, error } = await authClient.auth.verifyOtp(
                 type === "email"
                     ? {
                           email: targetValue,
@@ -3340,17 +3371,19 @@ async function initSellerPage(session, initialProfile) {
                 throw error;
             }
 
-            if (data?.user) {
-                currentAuthUser = data.user;
-            } else {
-                await refreshCurrentAuthUser();
-            }
-
             otpState[type].verified = true;
 
-            if (type === "phone" && currentAuthUser?.phone) {
-                otpState.phone.sentTo = currentAuthUser.phone;
-                phoneInput.value = currentAuthUser.phone;
+            if (type === "phone") {
+                if (data?.user) {
+                    currentAuthUser = data.user;
+                } else {
+                    await refreshCurrentAuthUser();
+                }
+
+                if (currentAuthUser?.phone) {
+                    otpState.phone.sentTo = currentAuthUser.phone;
+                    phoneInput.value = currentAuthUser.phone;
+                }
             }
 
             setInlineStatus(statusId, `${type === "email" ? "Email" : "Phone"} OTP verified.`, "success");
@@ -4152,7 +4185,7 @@ async function initBuyerPage(session) {
             setInlineStatus("seller-email-otp-status", "Sending OTP to the seller email address...");
 
             try {
-                const client = supabaseOtpClient || supabaseClient;
+                const client = getSupabaseOtpClient() || supabaseClient;
                 const { error } = await client.auth.signInWithOtp({
                     email: targetValue,
                     options: {
@@ -4236,7 +4269,7 @@ async function initBuyerPage(session) {
             setInlineStatus("seller-email-otp-status", "Verifying the seller email OTP...");
 
             try {
-                const client = supabaseOtpClient || supabaseClient;
+                const client = getSupabaseOtpClient() || supabaseClient;
                 const { error } = await client.auth.verifyOtp({
                     email: targetValue,
                     token: enteredCode,
