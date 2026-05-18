@@ -2425,11 +2425,24 @@ function isOtpVerifiedForValue(otpRecord, value, type = "email") {
 
 function getOtpSendErrorMessage(error, type) {
     const fallbackMessage = `We could not send the ${type} OTP. Please try again.`;
-    const message = String(error?.message || fallbackMessage);
+    const rawMessage = String(error?.message || "").trim();
+    const message =
+        rawMessage && rawMessage !== "{}" && rawMessage !== "[object Object]" ? rawMessage : fallbackMessage;
     const normalizedMessage = message.toLowerCase();
+    const normalizedDetails = String(error?.details || "").toLowerCase();
+    const statusCode = Number(error?.status);
 
     if (normalizedMessage.includes("rate limit")) {
         return `Please wait before requesting another ${type} OTP.`;
+    }
+
+    if (
+        statusCode === 504 ||
+        normalizedMessage.includes("gateway timeout") ||
+        normalizedMessage.includes("504") ||
+        normalizedDetails.includes("gateway timeout")
+    ) {
+        return `Supabase timed out while sending the ${type} OTP. This is usually an email or SMTP delivery issue on the Supabase side, not your login session. Wait a moment and try again.`;
     }
 
     if (type === "email" && normalizedMessage.includes("not authorized")) {
@@ -2445,8 +2458,12 @@ function getOtpSendErrorMessage(error, type) {
 
 function getOtpVerifyErrorMessage(error, type) {
     const fallbackMessage = `We could not verify that ${type} OTP. Please try again.`;
-    const message = String(error?.message || fallbackMessage);
+    const rawMessage = String(error?.message || "").trim();
+    const message =
+        rawMessage && rawMessage !== "{}" && rawMessage !== "[object Object]" ? rawMessage : fallbackMessage;
     const normalizedMessage = message.toLowerCase();
+    const normalizedDetails = String(error?.details || "").toLowerCase();
+    const statusCode = Number(error?.status);
 
     if (normalizedMessage.includes("expired") || normalizedMessage.includes("invalid")) {
         return "That OTP is invalid or has expired. Send a new code and try again.";
@@ -2454,6 +2471,15 @@ function getOtpVerifyErrorMessage(error, type) {
 
     if (normalizedMessage.includes("rate limit")) {
         return "Too many verification attempts. Please wait a moment and try again.";
+    }
+
+    if (
+        statusCode === 504 ||
+        normalizedMessage.includes("gateway timeout") ||
+        normalizedMessage.includes("504") ||
+        normalizedDetails.includes("gateway timeout")
+    ) {
+        return `Supabase timed out while verifying the ${type} OTP. Wait a moment, request a new code, and try again.`;
     }
 
     return message;
