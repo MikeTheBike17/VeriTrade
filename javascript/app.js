@@ -87,6 +87,11 @@ function formatSafetyScore(value) {
     return Number.isFinite(numericValue) ? `${numericValue.toFixed(1)} / 100` : EMPTY_LABEL;
 }
 
+function formatPercent(value) {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? `${clampPercent(numericValue)}%` : EMPTY_LABEL;
+}
+
 function showAlert(message) {
     alert(message);
 }
@@ -170,6 +175,56 @@ function normalizeText(value) {
 
 function normalizeUrl(value) {
     return String(value || "").trim().toLowerCase();
+}
+
+function normalizeRoleValue(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, "_");
+}
+
+function isAdminRoleValue(value) {
+    const normalizedValue = normalizeRoleValue(value);
+
+    if (!normalizedValue) {
+        return false;
+    }
+
+    return (
+        normalizedValue === "admin" ||
+        normalizedValue === "administrator" ||
+        normalizedValue === "super_admin" ||
+        normalizedValue === "superadmin" ||
+        normalizedValue.includes("admin")
+    );
+}
+
+function getUserRoleCandidates(profile, user) {
+    return [
+        profile?.role,
+        profile?.user_role,
+        profile?.account_role,
+        profile?.workspace_access,
+        user?.app_metadata?.role,
+        user?.app_metadata?.user_role,
+        user?.app_metadata?.account_role,
+        user?.user_metadata?.role,
+        user?.user_metadata?.user_role,
+        user?.user_metadata?.account_role
+    ].filter((value) => value !== null && value !== undefined && String(value).trim());
+}
+
+function isAdminUser(profile, user) {
+    return getUserRoleCandidates(profile, user).some((value) => isAdminRoleValue(value));
+}
+
+function updateAdminNavVisibility(profile, user) {
+    const showAdminNav = isAdminUser(profile, user);
+
+    document.querySelectorAll("[data-admin-only]").forEach((element) => {
+        element.hidden = !showAdminNav;
+    });
 }
 
 function readLoginAliasMap() {
@@ -815,6 +870,7 @@ async function syncProfileFromUser(user) {
         return null;
     }
 
+    const existingProfile = await fetchCurrentProfile(user.id);
     const username = user.user_metadata?.username || user.email?.split("@")[0] || "";
     const fullName = user.user_metadata?.full_name || "";
     const profilePayload = {
@@ -822,7 +878,7 @@ async function syncProfileFromUser(user) {
         username: username.toLowerCase(),
         full_name: fullName,
         auth_email: user.email ? user.email.toLowerCase() : "",
-        workspace_access: DEFAULT_WORKSPACE_ACCESS
+        workspace_access: existingProfile?.workspace_access || DEFAULT_WORKSPACE_ACCESS
     };
 
     cacheLoginAlias(profilePayload.username, profilePayload.auth_email);
@@ -939,6 +995,20 @@ async function searchSystemUsers(searchTerm) {
     }
 
     return data;
+}
+
+async function fetchAdminDashboardUsers() {
+    if (!supabaseClient) {
+        return [];
+    }
+
+    const { data, error } = await supabaseClient.rpc("get_admin_dashboard_users");
+
+    if (error) {
+        throw error;
+    }
+
+    return Array.isArray(data) ? data : [];
 }
 
 function simulateVerification() {
@@ -1832,6 +1902,7 @@ async function ensurePortalSession() {
     const syncedProfile = await syncProfileFromUser(session.user);
     const profile = syncedProfile || (await fetchCurrentProfile(session.user.id)) || getBaseProfileFromUser(session.user);
 
+    updateAdminNavVisibility(profile, session.user);
     populateAccountNav(profile);
     syncCurrentUserPageSlug(profile);
 
@@ -1978,6 +2049,303 @@ function initUserSearch() {
             closeModal();
         }
     });
+}
+
+function getAdminUserVerificationState(userRecord) {
+    const normalizedValue = normalizeText(userRecord?.verification_state).replace(/\s+/g, "_");
+    return ["verified", "pending", "rejected"].includes(normalizedValue) ? normalizedValue : "rejected";
+}
+
+function getAdminUserVerificationLabel(userRecord) {
+    const label = String(userRecord?.verification_label || "").trim();
+    return label || "Rejected / Unverified";
+}
+
+function getAdminCountValue(value) {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? Math.max(0, Math.round(numericValue)) : 0;
+}
+
+function hasAdminBuyerActivity(userRecord) {
+    return (
+        getAdminCountValue(userRecord?.total_purchase_records) > 0 ||
+        Boolean(String(userRecord?.buyer_verification_status || "").trim())
+    );
+}
+
+function getAdminStatusBadgeMarkup(userRecord) {
+    return `<span class="admin-status-badge is-${getAdminUserVerificationState(userRecord)}">${escapeHtml(getAdminUserVerificationLabel(userRecord))}</span>`;
+}
+
+function filterAdminUsers(users, searchTerm) {
+    const trimmedSearchTerm = String(searchTerm || "").trim();
+
+    if (!trimmedSearchTerm) {
+        return users;
+    }
+
+    const normalizedSearchTerm = normalizeText(trimmedSearchTerm);
+    const normalizedPhoneSearch = normalizePhone(trimmedSearchTerm);
+
+    return users.filter((userRecord) => {
+        const nameValue = normalizeText(userRecord?.full_name);
+        const emailValue = normalizeText(userRecord?.email);
+        const phoneValue = normalizePhone(userRecord?.phone_number);
+
+        return (
+            nameValue.includes(normalizedSearchTerm) ||
+            emailValue.includes(normalizedSearchTerm) ||
+            (normalizedPhoneSearch && phoneValue.includes(normalizedPhoneSearch))
+        );
+    });
+}
+
+function renderAdminChart(users, emptyMessage = "No buyer follow-through records matched the current view.") {
+    const chartContainer = document.getElementById("admin-follow-through-chart");
+
+    if (!chartContainer) {
+        return;
+    }
+
+    const buyerUsers = users.filter((userRecord) => hasAdminBuyerActivity(userRecord));
+
+    if (!buyerUsers.length) {
+        chartContainer.innerHTML = `
+            <article class="history-item empty-state">
+                <h4>${EMPTY_LABEL}</h4>
+                <p>${escapeHtml(emptyMessage)}</p>
+            </article>
+        `;
+        return;
+    }
+
+    chartContainer.innerHTML = buyerUsers
+        .map((userRecord) => {
+            const totalPurchaseRecords = getAdminCountValue(userRecord?.total_purchase_records);
+            const followedThroughPurchases = getAdminCountValue(userRecord?.followed_through_purchases);
+            const followThroughPercent = getAdminCountValue(userRecord?.follow_through_percent);
+            const displayName = userRecord?.full_name || userRecord?.email || userRecord?.phone_number || "Unnamed user";
+
+            return `
+                <article class="admin-chart-row">
+                    <div class="admin-chart-copy">
+                        <div>
+                            <h4>${escapeHtml(displayName)}</h4>
+                            <p>${followedThroughPurchases} of ${totalPurchaseRecords} purchase record${totalPurchaseRecords === 1 ? "" : "s"} followed through</p>
+                        </div>
+                        <strong>${followThroughPercent}%</strong>
+                    </div>
+                    <div class="metric-bar admin-chart-bar">
+                        <span class="metric-fill" style="width: ${followThroughPercent}%"></span>
+                    </div>
+                </article>
+            `;
+        })
+        .join("");
+}
+
+function renderAdminTable(users, emptyMessage = "No users matched the current search.") {
+    const tableBody = document.getElementById("admin-user-table-body");
+
+    if (!tableBody) {
+        return;
+    }
+
+    if (!users.length) {
+        tableBody.innerHTML = `
+            <tr class="admin-empty-row">
+                <td colspan="7">${escapeHtml(emptyMessage)}</td>
+            </tr>
+        `;
+        return;
+    }
+
+    tableBody.innerHTML = users
+        .map(
+            (userRecord, index) => `
+                <tr>
+                    <td data-label="Full Name">${escapeHtml(userRecord?.full_name || EMPTY_LABEL)}</td>
+                    <td data-label="Email">${escapeHtml(userRecord?.email || EMPTY_LABEL)}</td>
+                    <td data-label="Phone Number">${escapeHtml(userRecord?.phone_number || EMPTY_LABEL)}</td>
+                    <td data-label="Verification Status">${getAdminStatusBadgeMarkup(userRecord)}</td>
+                    <td data-label="Follow-through">
+                        <div class="admin-follow-through-cell">
+                            <strong>${escapeHtml(formatPercent(userRecord?.follow_through_percent))}</strong>
+                            <span>${getAdminCountValue(userRecord?.followed_through_purchases)} / ${getAdminCountValue(userRecord?.total_purchase_records)}</span>
+                        </div>
+                    </td>
+                    <td data-label="Date Created">${escapeHtml(formatDate(userRecord?.created_at))}</td>
+                    <td data-label="Actions">
+                        <button type="button" class="inline-action-btn" data-admin-user-index="${index}">View</button>
+                    </td>
+                </tr>
+            `
+        )
+        .join("");
+}
+
+function populateAdminUserModal(userRecord) {
+    setTextContent("admin-modal-name", userRecord?.full_name || EMPTY_LABEL);
+    setTextContent("admin-modal-email", userRecord?.email || EMPTY_LABEL);
+    setTextContent("admin-modal-phone", userRecord?.phone_number || EMPTY_LABEL);
+    setTextContent("admin-modal-verification", getAdminUserVerificationLabel(userRecord));
+    setTextContent("admin-modal-buyer-status", userRecord?.buyer_verification_status || EMPTY_LABEL);
+    setTextContent("admin-modal-seller-status", userRecord?.seller_verification_status || EMPTY_LABEL);
+    setTextContent("admin-modal-buyer-trust", formatPercent(userRecord?.buyer_trust_score));
+    setTextContent("admin-modal-seller-trust", formatPercent(userRecord?.seller_trust_score));
+    setTextContent("admin-modal-purchase-confidence", formatPercent(userRecord?.purchase_confidence_score));
+    setTextContent("admin-modal-average-safety", formatSafetyScore(userRecord?.average_safety_score));
+    setTextContent("admin-modal-total-purchases", String(getAdminCountValue(userRecord?.total_purchase_records)));
+    setTextContent(
+        "admin-modal-followed-through",
+        String(getAdminCountValue(userRecord?.followed_through_purchases))
+    );
+    setTextContent("admin-modal-follow-through-rate", formatPercent(userRecord?.follow_through_percent));
+    setTextContent("admin-modal-created-at", formatDate(userRecord?.created_at));
+}
+
+function renderAdminSummary(allUsers) {
+    const totalUsers = allUsers.length;
+    const totalBuyers = allUsers.filter((userRecord) => hasAdminBuyerActivity(userRecord)).length;
+    const verifiedUsers = allUsers.filter((userRecord) => getAdminUserVerificationState(userRecord) === "verified").length;
+    const usersWithPurchases = allUsers.filter((userRecord) => getAdminCountValue(userRecord?.total_purchase_records) > 0);
+    const averageFollowThrough = usersWithPurchases.length
+        ? clampPercent(
+              usersWithPurchases.reduce((sum, userRecord) => sum + Number(userRecord?.follow_through_percent || 0), 0) /
+                  usersWithPurchases.length
+          )
+        : 0;
+
+    setStatValue("admin-stat-total-users", String(totalUsers));
+    setStatValue("admin-stat-total-buyers", String(totalBuyers));
+    setStatValue("admin-stat-verified-users", String(verifiedUsers));
+    setStatValue("admin-stat-average-follow-through", `${averageFollowThrough}%`);
+}
+
+async function initAdminPage(session, profile) {
+    const dashboardShell = document.getElementById("admin-dashboard-shell");
+    const accessDeniedCard = document.getElementById("admin-access-denied");
+    const accessMessage = document.getElementById("admin-access-message");
+    const pageStatus = document.getElementById("admin-page-status");
+    const tableStatus = document.getElementById("admin-table-status");
+    const searchInput = document.getElementById("admin-user-search");
+    const tableBody = document.getElementById("admin-user-table-body");
+    const modal = document.getElementById("admin-user-modal");
+    const closeButton = document.getElementById("admin-user-modal-close");
+    const closeActionButton = document.getElementById("admin-user-modal-close-action");
+
+    if (
+        !dashboardShell ||
+        !accessDeniedCard ||
+        !accessMessage ||
+        !pageStatus ||
+        !tableStatus ||
+        !searchInput ||
+        !tableBody ||
+        !modal ||
+        !closeButton ||
+        !closeActionButton
+    ) {
+        return;
+    }
+
+    if (!isAdminUser(profile, session.user)) {
+        dashboardShell.hidden = true;
+        accessDeniedCard.hidden = false;
+        accessMessage.textContent = "Only users with an admin role can access this page.";
+        return;
+    }
+
+    accessDeniedCard.hidden = true;
+    dashboardShell.hidden = false;
+    setStatusMessage("admin-page-status", "Loading admin dashboard...", "");
+
+    let allUsers = [];
+    let filteredUsers = [];
+
+    function closeModal() {
+        modal.hidden = true;
+    }
+
+    function openModal(userRecord) {
+        populateAdminUserModal(userRecord);
+        modal.hidden = false;
+    }
+
+    function applyAdminFilters() {
+        filteredUsers = filterAdminUsers(allUsers, searchInput.value);
+
+        if (!allUsers.length) {
+            renderAdminTable([], "No users have been created in Supabase yet.");
+            renderAdminChart([], "User follow-through data will appear here once records are available.");
+            tableStatus.textContent = "No users have been created in Supabase yet.";
+            return;
+        }
+
+        renderAdminTable(filteredUsers);
+        renderAdminChart(filteredUsers);
+
+        tableStatus.textContent = filteredUsers.length
+            ? `Showing ${filteredUsers.length} of ${allUsers.length} user${allUsers.length === 1 ? "" : "s"}.`
+            : "No users matched that name, email, or phone number.";
+    }
+
+    tableBody.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-admin-user-index]");
+
+        if (!button) {
+            return;
+        }
+
+        const userIndex = Number(button.getAttribute("data-admin-user-index"));
+        const userRecord = filteredUsers[userIndex];
+
+        if (userRecord) {
+            openModal(userRecord);
+        }
+    });
+
+    closeButton.addEventListener("click", closeModal);
+    closeActionButton.addEventListener("click", closeModal);
+    modal.addEventListener("click", (event) => {
+        if (event.target === modal) {
+            closeModal();
+        }
+    });
+
+    searchInput.addEventListener("input", applyAdminFilters);
+
+    try {
+        allUsers = await fetchAdminDashboardUsers();
+        renderAdminSummary(allUsers);
+        applyAdminFilters();
+
+        setStatusMessage(
+            "admin-page-status",
+            allUsers.length
+                ? `Admin dashboard loaded successfully with ${allUsers.length} user record${allUsers.length === 1 ? "" : "s"}.`
+                : "No users are available yet. The dashboard will populate once accounts are created.",
+            allUsers.length ? "success" : ""
+        );
+    } catch (error) {
+        renderAdminSummary([]);
+        renderAdminTable([], "The admin user table could not be loaded.");
+        renderAdminChart([], "The follow-through chart could not be loaded.");
+
+        const normalizedMessage = normalizeText(error?.message || error?.details || "");
+        const isMissingRpc =
+            normalizedMessage.includes("get_admin_dashboard_users") ||
+            normalizedMessage.includes("could not find the function");
+
+        setStatusMessage(
+            "admin-page-status",
+            isMissingRpc
+                ? "Admin data access is not available yet. Apply the latest Supabase migration, then reload this page."
+                : error?.message || "We could not load the admin dashboard right now.",
+            "error"
+        );
+        tableStatus.textContent = "The admin user table could not be loaded.";
+    }
 }
 
 function setInlineStatus(id, message, type = "") {
@@ -4302,6 +4670,10 @@ async function initPortalPage() {
 
     if (document.getElementById("history-list")) {
         await initUserPage(session, profile);
+    }
+
+    if (document.getElementById("admin-dashboard-shell")) {
+        await initAdminPage(session, profile);
     }
 
     if (document.getElementById("seller-profile-form")) {
