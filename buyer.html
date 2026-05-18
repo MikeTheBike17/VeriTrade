@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,follow">
     <title>VeriTrade - Buyer Portal</title>
-    <link rel="stylesheet" href="css/style.css?v=20260506-4">
+    <link rel="stylesheet" href="css/style.css?v=20260518-1">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="javascript/app.js?v=20260506-1" defer></script>
+    <script src="javascript/app.js?v=20260518-1" defer></script>
 </head>
 <body class="portal-page">
     <!-- Navigation Bar -->
@@ -28,7 +28,8 @@
             </button>
             <div class="portal-nav-menu" id="portal-nav-menu">
                 <ul class="nav-links-inside">
-                    <li><a href="user.html">Admin</a></li>
+                    <li><a href="user.html">User</a></li>
+                    <li data-admin-only><a href="admin.html">Admin</a></li>
                     <li><a href="seller.html">Seller</a></li>
                     <li><a href="buyer.html" class="active">Buyer</a></li>
                     <li><a href="terms.html">T&amp;Cs</a></li>

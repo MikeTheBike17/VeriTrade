@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,follow">
+    <title>VeriTrade - Admin Dashboard</title>
+    <link rel="stylesheet" href="css/style.css?v=20260518-1">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="javascript/app.js?v=20260518-1" defer></script>
+</head>
+<body class="portal-page">
+    <nav class="navbar">
+        <div class="nav-container-inside">
+            <a href="user.html" class="nav-logo">
+                <img src="assets/VeriTrade-logo.png" alt="VeriTrade Logo" class="nav-logo-img">
+                <span class="nav-logo-text">VeriTrade</span>
+            </a>
+            <button
+                type="button"
+                class="portal-nav-toggle"
+                aria-expanded="false"
+                aria-controls="portal-nav-menu"
+                aria-label="Open navigation menu"
+            >
+                Menu
+            </button>
+            <div class="portal-nav-menu" id="portal-nav-menu">
+                <ul class="nav-links-inside">
+                    <li><a href="user.html">User</a></li>
+                    <li data-admin-only><a href="admin.html" class="active">Admin</a></li>
+                    <li><a href="seller.html">Seller</a></li>
+                    <li><a href="buyer.html">Buyer</a></li>
+                    <li><a href="terms.html">T&amp;Cs</a></li>
+                </ul>
+                <a href="index.html" class="exit-btn" id="logout-btn" data-signout-link>Log Out</a>
+            </div>
+        </div>
+    </nav>
+
+    <section class="portal-hero admin-hero">
+        <div class="portal-hero-content">
+            <p class="hero-eyebrow">VeriTrade administration</p>
+            <h1>Admin dashboard</h1>
+            <p>Monitor user verification, buyer activity, and purchase follow-through from one secure workspace.</p>
+        </div>
+    </section>
+
+    <section class="dashboard-overview">
+        <div class="portal-container">
+            <div class="section-header section-header-left">
+                <p class="section-label">Operations overview</p>
+                <h2>Review account activity across the platform</h2>
+                <p>The dashboard combines account details, buyer and seller verification states, follow-through activity, and safety signals pulled directly from Supabase.</p>
+            </div>
+
+            <article class="detail-card admin-access-card" id="admin-access-denied" hidden>
+                <span class="card-kicker">Access control</span>
+                <h3>Access denied</h3>
+                <p id="admin-access-message">Only VeriTrade admins can open this page.</p>
+                <a href="user.html" class="card-btn seller-btn">Return to User Workspace</a>
+            </article>
+
+            <div id="admin-dashboard-shell" hidden>
+                <p class="status-banner" id="admin-page-status" aria-live="polite"></p>
+
+                <div class="stats-grid">
+                    <article class="stat-card">
+                        <span class="stat-value" id="admin-stat-total-users">-</span>
+                        <h3>Total Users</h3>
+                        <p>All registered VeriTrade accounts returned from the admin dataset.</p>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-value" id="admin-stat-total-buyers">-</span>
+                        <h3>Total Buyers Listed</h3>
+                        <p>Accounts with buyer activity or saved purchase records attached to them.</p>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-value" id="admin-stat-verified-users">-</span>
+                        <h3>Verified Users</h3>
+                        <p>Users whose seller or buyer verification state currently resolves to verified.</p>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-value" id="admin-stat-average-follow-through">-</span>
+                        <h3>Average Follow-through %</h3>
+                        <p>The average percentage of saved buyer purchase records that received a follow-up outcome.</p>
+                    </article>
+                </div>
+
+                <div class="dashboard-grid dashboard-grid-spaced admin-dashboard-grid">
+                    <article class="detail-card admin-chart-card">
+                        <span class="card-kicker">Follow-through chart</span>
+                        <h3>Buyer purchase follow-through</h3>
+                        <p class="form-note">Each bar shows how often a buyer followed up on purchase records from their user workspace with a final outcome such as received, not delivered, or fraud reported.</p>
+                        <div class="admin-follow-through-chart" id="admin-follow-through-chart">
+                            <article class="history-item empty-state">
+                                <h4>-</h4>
+                                <p>User follow-through data will appear here once records are available.</p>
+                            </article>
+                        </div>
+                    </article>
+
+                    <article class="detail-card admin-table-card">
+                        <div class="admin-table-toolbar">
+                            <div>
+                                <span class="card-kicker">User management</span>
+                                <h3>Search and review registered users</h3>
+                                <p class="form-note">Search by name, email address, or phone number. Use the view action to inspect buyer scores, seller verification, and purchase follow-through details.</p>
+                            </div>
+                            <div class="form-group admin-search-group">
+                                <label for="admin-user-search">Search users</label>
+                                <input
+                                    type="text"
+                                    id="admin-user-search"
+                                    placeholder="Search by name, email, or phone number"
+                                    autocomplete="off"
+                                >
+                            </div>
+                        </div>
+
+                        <p class="status-banner" id="admin-table-status" aria-live="polite"></p>
+
+                        <div class="admin-table-wrap">
+                            <table class="admin-user-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Full Name</th>
+                                        <th scope="col">Email</th>
+                                        <th scope="col">Phone Number</th>
+                                        <th scope="col">Verification Status</th>
+                                        <th scope="col">Follow-through</th>
+                                        <th scope="col">Date Created</th>
+                                        <th scope="col">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-user-table-body">
+                                    <tr class="admin-empty-row">
+                                        <td colspan="7">User records will appear here after the dashboard loads.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer" id="contact">
+        <p>VeriTrade <span data-current-year></span> | Trusted trading verification.</p>
+    </footer>
+
+    <div class="user-search-modal" id="admin-user-modal" hidden>
+        <div class="user-search-dialog admin-user-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-user-modal-title">
+            <div class="capture-dialog-header">
+                <div>
+                    <p class="section-label">User details</p>
+                    <h3 id="admin-user-modal-title">VeriTrade account</h3>
+                </div>
+                <button type="button" class="capture-close-btn" id="admin-user-modal-close" aria-label="Close user details">Close</button>
+            </div>
+            <ul class="detail-list user-search-detail-list">
+                <li><span>Name</span><strong id="admin-modal-name">-</strong></li>
+                <li><span>Email</span><strong id="admin-modal-email">-</strong></li>
+                <li><span>Phone number</span><strong id="admin-modal-phone">-</strong></li>
+                <li><span>Verification status</span><strong id="admin-modal-verification">-</strong></li>
+                <li><span>Buyer verification</span><strong id="admin-modal-buyer-status">-</strong></li>
+                <li><span>Seller verification</span><strong id="admin-modal-seller-status">-</strong></li>
+                <li><span>Buyer trust score</span><strong id="admin-modal-buyer-trust">-</strong></li>
+                <li><span>Seller trust score</span><strong id="admin-modal-seller-trust">-</strong></li>
+                <li><span>Purchase confidence</span><strong id="admin-modal-purchase-confidence">-</strong></li>
+                <li><span>Average safety score</span><strong id="admin-modal-average-safety">-</strong></li>
+                <li><span>Total purchase records</span><strong id="admin-modal-total-purchases">-</strong></li>
+                <li><span>Followed-through purchases</span><strong id="admin-modal-followed-through">-</strong></li>
+                <li><span>Follow-through percentage</span><strong id="admin-modal-follow-through-rate">-</strong></li>
+                <li><span>Account created</span><strong id="admin-modal-created-at">-</strong></li>
+            </ul>
+            <div class="capture-dialog-actions">
+                <button type="button" class="inline-action-btn" id="admin-user-modal-close-action">Close</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
