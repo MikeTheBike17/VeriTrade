@@ -7,6 +7,7 @@ const BUYER_STORAGE_BUCKET = "buyer-verification-records";
 const USER_REDIRECT_PAGE = "user.html";
 const USER_SLUG_PARAM = "slug";
 const LOGIN_ALIAS_STORAGE_KEY = "veritrade_login_aliases";
+const OTP_AUTH_STORAGE_KEY = "veritrade_otp_auth";
 const OTP_LENGTH = 6;
 const SELLER_DEMO_VERIFICATION_FUNCTION = "demo-identity-verification";
 
@@ -30,6 +31,7 @@ const supabaseClient = hasSupabaseConfig
 const supabaseOtpClient = hasSupabaseConfig
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
           auth: {
+              storageKey: OTP_AUTH_STORAGE_KEY,
               persistSession: false,
               autoRefreshToken: false,
               detectSessionInUrl: false
