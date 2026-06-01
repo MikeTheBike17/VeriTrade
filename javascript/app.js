@@ -2637,22 +2637,6 @@ function getOtpVerifyErrorMessage(error, type) {
     return message;
 }
 
-function getBuyerEmailOtpSendErrorMessage(error) {
-    const message = String(error?.message || "");
-    const normalizedMessage = message.toLowerCase();
-
-    if (
-        normalizedMessage.includes("not found") ||
-        normalizedMessage.includes("no user") ||
-        normalizedMessage.includes("signup") ||
-        normalizedMessage.includes("sign up")
-    ) {
-        return "We could not send the seller email OTP. Ask the seller to register on VeriTrade first or confirm the email address.";
-    }
-
-    return getOtpSendErrorMessage(error, "email");
-}
-
 function getVerificationCropOutputConfig(targetField) {
     if (targetField === "id-photo") {
         return {
@@ -4359,6 +4343,12 @@ async function initBuyerPage(session) {
                 return;
             }
 
+            if (!sellerEmailInput.checkValidity()) {
+                setInlineStatus("seller-email-otp-status", "Enter a valid seller email address before sending the OTP.", "error");
+                sellerEmailInput.reportValidity();
+                return;
+            }
+
             buyerEmailOtpState.sentTo = targetValue;
             buyerEmailOtpState.verified = false;
             buyerEmailOtpState.hasSentCode = false;
@@ -4373,7 +4363,7 @@ async function initBuyerPage(session) {
                 const { error } = await client.auth.signInWithOtp({
                     email: targetValue,
                     options: {
-                        shouldCreateUser: false
+                        shouldCreateUser: true
                     }
                 });
 
@@ -4385,7 +4375,7 @@ async function initBuyerPage(session) {
                 sellerEmailOtpSendButton.textContent = "Resend OTP";
                 setInlineStatus("seller-email-otp-status", "OTP sent to the seller email address. Enter the 6-digit code to verify it.", "success");
             } catch (error) {
-                setInlineStatus("seller-email-otp-status", getBuyerEmailOtpSendErrorMessage(error), "error");
+                setInlineStatus("seller-email-otp-status", getOtpSendErrorMessage(error, "email"), "error");
             } finally {
                 buyerEmailOtpState.sendInFlight = false;
                 sellerEmailOtpSendButton.disabled = false;
@@ -4768,7 +4758,7 @@ async function initBuyerPage(session) {
         sellerEmailOtpSendButton?.addEventListener("click", () => {
             sendBuyerEmailOtp().catch((error) => {
                 buyerEmailOtpState.sendInFlight = false;
-                setInlineStatus("seller-email-otp-status", getBuyerEmailOtpSendErrorMessage(error), "error");
+                setInlineStatus("seller-email-otp-status", getOtpSendErrorMessage(error, "email"), "error");
             });
         });
 
