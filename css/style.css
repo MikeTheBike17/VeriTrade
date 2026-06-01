@@ -1129,6 +1129,37 @@ input[readonly] {
 .buyer-safety-score-card {
     width: 100%;
     max-width: none;
+    transition:
+        background-color 180ms ease,
+        border-color 180ms ease,
+        box-shadow 180ms ease;
+}
+
+.buyer-safety-score-card-high {
+    background: #ff8b77;
+    border-color: red;
+}
+
+.buyer-safety-score-card-medium {
+    background: hsl(40, 100%, 70%);
+    border-color: orangered;
+}
+
+.buyer-safety-score-card-low {
+    background: #3ff6b9;
+    border-color: green;
+}
+
+.buyer-safety-score-card-high .result-label,
+.buyer-safety-score-card-medium .result-label,
+.buyer-safety-score-card-low .result-label,
+.buyer-safety-score-card-high strong,
+.buyer-safety-score-card-medium strong,
+.buyer-safety-score-card-low strong,
+.buyer-safety-score-card-high p,
+.buyer-safety-score-card-medium p,
+.buyer-safety-score-card-low p {
+    color: #173042;
 }
 
 .verification-message-stack {

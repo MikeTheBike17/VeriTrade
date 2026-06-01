@@ -4328,6 +4328,7 @@ async function initBuyerPage(session) {
         const verificationBreakdownScore = document.getElementById("buyer-verification-breakdown-score");
         const verificationTotalScore = document.getElementById("buyer-verification-total-score");
         const verificationStatusText = document.getElementById("buyer-verification-status-text");
+        const verificationTotalCard = verificationTotalScore?.closest(".buyer-safety-score-card");
         const verificationProgressText = document.getElementById("buyer-verification-progress-text");
         const verificationLoadingText = document.getElementById("buyer-verification-loading-text");
         const verificationScoreFill = document.getElementById("buyer-verification-score-fill");
@@ -4633,6 +4634,21 @@ async function initBuyerPage(session) {
                 verificationStatusText.textContent = hasVerification
                     ? `Status: ${safetyStatus}`
                     : "Complete the seller details, verify both OTPs, and run the identity check.";
+            }
+
+            if (verificationTotalCard) {
+                verificationTotalCard.classList.remove(
+                    "buyer-safety-score-card-high",
+                    "buyer-safety-score-card-medium",
+                    "buyer-safety-score-card-low"
+                );
+                verificationTotalCard.classList.add(
+                    safetyScore.totalScore >= 70
+                        ? "buyer-safety-score-card-low"
+                        : safetyScore.totalScore >= 40
+                            ? "buyer-safety-score-card-medium"
+                            : "buyer-safety-score-card-high"
+                );
             }
 
             if (verificationScoreFill) {
