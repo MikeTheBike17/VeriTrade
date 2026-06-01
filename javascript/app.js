@@ -118,32 +118,6 @@ function formatSafetyScore(value) {
     return Number.isFinite(numericValue) ? `${numericValue.toFixed(1)} / 100` : EMPTY_LABEL;
 }
 
-function formatScoreComponent(value, maximumScore) {
-    const numericValue = Number(value);
-    return value !== null && value !== undefined && value !== "" && Number.isFinite(numericValue)
-        ? `${numericValue.toFixed(1)} / ${maximumScore}`
-        : EMPTY_LABEL;
-}
-
-function getSafetyScoreBreakdownMarkup(record) {
-    const componentKeys = ["details_score", "email_otp_score", "phone_otp_score", "face_recognition_score"];
-    const hasBreakdown = componentKeys.some(
-        (key) =>
-            record?.[key] !== null &&
-            record?.[key] !== undefined &&
-            record?.[key] !== "" &&
-            Number.isFinite(Number(record[key]))
-    );
-
-    if (!hasBreakdown) {
-        return "";
-    }
-
-    return `
-        <p>Score breakdown: seller details ${escapeHtml(formatScoreComponent(record.details_score, 20))}; email OTP ${escapeHtml(formatScoreComponent(record.email_otp_score, 20))}; phone OTP ${escapeHtml(formatScoreComponent(record.phone_otp_score, 20))}; facial recognition ${escapeHtml(formatScoreComponent(record.face_recognition_score, 40))}.</p>
-    `;
-}
-
 function getOptionalSellerContextMarkup(record) {
     return `
         ${record?.business_name ? `<p>Business name: ${escapeHtml(record.business_name)}</p>` : ""}
@@ -786,7 +760,6 @@ function renderPurchaseList(purchases) {
                     <p>Seller phone: ${escapeHtml(purchase.seller_phone || EMPTY_LABEL)}</p>
                     ${getOptionalSellerContextMarkup(purchase)}
                     <p>Safety score: ${escapeHtml(formatSafetyScore(purchase.safety_score))}</p>
-                    ${getSafetyScoreBreakdownMarkup(purchase)}
                     <p>Current status: ${escapeHtml(formatPurchaseStatusLabel(purchase.purchase_status))}</p>
                     ${
                         purchase.fraud_reported
@@ -1457,6 +1430,58 @@ async function hasSellerRiskWarning(sellerEmail, sellerPhone) {
             (normalizedEmail && normalizeText(purchase.seller_email) === normalizedEmail) ||
             (normalizedPhone && normalizePhone(purchase.seller_phone) === normalizedPhone)
     );
+}
+
+function isMissingPurchaseAssessmentColumnError(error) {
+    const optionalAssessmentColumns = [
+        "seller_social_handle",
+        "marketplace_profile_link",
+        "business_name",
+        "seller_notes",
+        "details_score",
+        "email_otp_score",
+        "phone_otp_score",
+        "face_recognition_score"
+    ];
+    const errorText = normalizeText([error?.code, error?.message, error?.details, error?.hint].filter(Boolean).join(" "));
+
+    return (
+        errorText.includes("pgrst204") ||
+        (errorText.includes("column") && optionalAssessmentColumns.some((column) => errorText.includes(column)))
+    );
+}
+
+function getCorePurchasePayload(purchasePayload) {
+    return {
+        buyer_user_id: purchasePayload.buyer_user_id,
+        seller_user_id: purchasePayload.seller_user_id,
+        seller_type: purchasePayload.seller_type,
+        seller_name: purchasePayload.seller_name,
+        seller_email: purchasePayload.seller_email,
+        seller_phone: purchasePayload.seller_phone,
+        safety_score: purchasePayload.safety_score,
+        purchase_status: purchasePayload.purchase_status,
+        fraud_reported: purchasePayload.fraud_reported,
+        fraud_reason: purchasePayload.fraud_reason
+    };
+}
+
+async function insertBuyerSellerAssessment(purchasePayload) {
+    const firstAttempt = await supabaseClient
+        .from("purchases")
+        .insert(purchasePayload)
+        .select("*")
+        .single();
+
+    if (!firstAttempt.error || !isMissingPurchaseAssessmentColumnError(firstAttempt.error)) {
+        return firstAttempt;
+    }
+
+    return supabaseClient
+        .from("purchases")
+        .insert(getCorePurchasePayload(purchasePayload))
+        .select("*")
+        .single();
 }
 
 function bindPurchaseActions(userId) {
@@ -2307,7 +2332,6 @@ function renderAdminSellerAssessments(userRecord) {
                     <p>Seller phone: ${escapeHtml(assessment.seller_phone || EMPTY_LABEL)}</p>
                     ${getOptionalSellerContextMarkup(assessment)}
                     <p>Safety score: ${escapeHtml(formatSafetyScore(assessment.safety_score))}</p>
-                    ${getSafetyScoreBreakdownMarkup(assessment)}
                     <p>Current status: ${escapeHtml(formatPurchaseStatusLabel(assessment.purchase_status))}</p>
                     ${assessment.fraud_reported ? '<p><strong class="result-pill high-pill">Fraud Reported</strong></p>' : ""}
                 </article>
@@ -4265,7 +4289,6 @@ async function initBuyerPage(session) {
         const sellerPhoneInput = document.getElementById("purchase-seller-phone");
         const sellerPhoneOtpInput = document.getElementById("seller-phone-otp");
         const sellerPhoneOtpSendButton = document.getElementById("seller-phone-otp-send");
-        const sellerIdNumberInput = document.getElementById("purchase-seller-id-number");
         const sellerSocialHandleInput = document.getElementById("purchase-seller-social-handle");
         const marketplaceProfileInput = document.getElementById("purchase-marketplace-profile");
         const businessNameInput = document.getElementById("purchase-business-name");
@@ -4281,10 +4304,6 @@ async function initBuyerPage(session) {
         const verificationBreakdownScore = document.getElementById("buyer-verification-breakdown-score");
         const verificationTotalScore = document.getElementById("buyer-verification-total-score");
         const verificationStatusText = document.getElementById("buyer-verification-status-text");
-        const verificationDetailsScore = document.getElementById("buyer-verification-details-score");
-        const verificationEmailOtpScore = document.getElementById("buyer-verification-email-otp-score");
-        const verificationPhoneOtpScore = document.getElementById("buyer-verification-phone-otp-score");
-        const verificationFaceScore = document.getElementById("buyer-verification-face-score");
         const verificationProgressText = document.getElementById("buyer-verification-progress-text");
         const verificationLoadingText = document.getElementById("buyer-verification-loading-text");
         const verificationScoreFill = document.getElementById("buyer-verification-score-fill");
@@ -4525,8 +4544,7 @@ async function initBuyerPage(session) {
             const detailsComplete = [
                 sellerNameInput.value.trim(),
                 sellerEmailInput.value.trim(),
-                sellerPhoneInput.value.trim(),
-                sellerIdNumberInput.value.trim()
+                sellerPhoneInput.value.trim()
             ].every(Boolean);
             const emailOtpVerified = isOtpVerifiedForValue(
                 buyerEmailOtpState,
@@ -4591,22 +4609,6 @@ async function initBuyerPage(session) {
                 verificationStatusText.textContent = hasVerification
                     ? `Status: ${safetyStatus}`
                     : "Complete the seller details, verify both OTPs, and run the identity check.";
-            }
-
-            if (verificationDetailsScore) {
-                verificationDetailsScore.textContent = `Required seller details: ${safetyScore.detailsScore} / 20`;
-            }
-
-            if (verificationEmailOtpScore) {
-                verificationEmailOtpScore.textContent = `Email OTP verification: ${safetyScore.emailOtpScore} / 20`;
-            }
-
-            if (verificationPhoneOtpScore) {
-                verificationPhoneOtpScore.textContent = `Phone OTP verification: ${safetyScore.phoneOtpScore} / 20`;
-            }
-
-            if (verificationFaceScore) {
-                verificationFaceScore.textContent = `Facial recognition: ${safetyScore.faceScore.toFixed(1)} / 40`;
             }
 
             if (verificationScoreFill) {
@@ -4703,7 +4705,7 @@ async function initBuyerPage(session) {
             return verificationOutcome;
         }
 
-        [sellerNameInput, sellerEmailInput, sellerPhoneInput, sellerIdNumberInput].forEach((input) => {
+        [sellerNameInput, sellerEmailInput, sellerPhoneInput].forEach((input) => {
             input?.addEventListener("input", () => {
                 setStatusMessage("buyer-purchase-status", "", "");
                 renderBuyerVerificationState();
@@ -4794,25 +4796,22 @@ async function initBuyerPage(session) {
 
         renderBuyerVerificationState();
 
-        purchaseForm.addEventListener("submit", async (event) => {
-            event.preventDefault();
-
+        async function saveBuyerSellerAssessment() {
             const sellerName = sellerNameInput.value.trim();
             const sellerEmail = sellerEmailInput.value.trim().toLowerCase();
             const sellerPhone = sellerPhoneInput.value.trim();
-            const sellerIdNumber = sellerIdNumberInput.value.trim();
             const sellerSocialHandle = sellerSocialHandleInput.value.trim();
             const marketplaceProfileLink = marketplaceProfileInput.value.trim();
             const businessName = businessNameInput.value.trim();
             const sellerNotes = sellerNotesInput.value.trim();
             const selfieFile = imageController.getFile("selfie");
             const idPhotoFile = imageController.getFile("id-photo");
-            const requiredFieldsComplete = [sellerName, sellerEmail, sellerPhone, sellerIdNumber].every(Boolean);
+            const requiredFieldsComplete = [sellerName, sellerEmail, sellerPhone].every(Boolean);
 
             if (!requiredFieldsComplete || !selfieFile || !idPhotoFile) {
                 setStatusMessage(
                     "buyer-purchase-status",
-                    "Complete the seller name, email, phone number, ID number, and both cropped images before saving this seller record.",
+                    "Complete the seller name, email, phone number, and both cropped images before saving this seller record.",
                     "error"
                 );
                 return;
@@ -4881,11 +4880,7 @@ async function initBuyerPage(session) {
                 fraud_reason: null
             };
 
-            const { data, error } = await supabaseClient
-                .from("purchases")
-                .insert(purchasePayload)
-                .select("*")
-                .single();
+            const { data, error } = await insertBuyerSellerAssessment(purchasePayload);
 
             if (error) {
                 setStatusMessage("buyer-purchase-status", error.message, "error");
@@ -4919,6 +4914,18 @@ async function initBuyerPage(session) {
             window.setTimeout(() => {
                 window.location.href = getUserPageUrl(session.user);
             }, 1800);
+        }
+
+        purchaseForm.addEventListener("submit", (event) => {
+            event.preventDefault();
+
+            saveBuyerSellerAssessment().catch((error) => {
+                setStatusMessage(
+                    "buyer-purchase-status",
+                    error?.message || "We could not save this seller assessment. Please try again.",
+                    "error"
+                );
+            });
         });
     }
 }
