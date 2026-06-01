@@ -118,6 +118,41 @@ function formatSafetyScore(value) {
     return Number.isFinite(numericValue) ? `${numericValue.toFixed(1)} / 100` : EMPTY_LABEL;
 }
 
+function formatScoreComponent(value, maximumScore) {
+    const numericValue = Number(value);
+    return value !== null && value !== undefined && value !== "" && Number.isFinite(numericValue)
+        ? `${numericValue.toFixed(1)} / ${maximumScore}`
+        : EMPTY_LABEL;
+}
+
+function getSafetyScoreBreakdownMarkup(record) {
+    const componentKeys = ["details_score", "email_otp_score", "phone_otp_score", "face_recognition_score"];
+    const hasBreakdown = componentKeys.some(
+        (key) =>
+            record?.[key] !== null &&
+            record?.[key] !== undefined &&
+            record?.[key] !== "" &&
+            Number.isFinite(Number(record[key]))
+    );
+
+    if (!hasBreakdown) {
+        return "";
+    }
+
+    return `
+        <p>Score breakdown: seller details ${escapeHtml(formatScoreComponent(record.details_score, 20))}; email OTP ${escapeHtml(formatScoreComponent(record.email_otp_score, 20))}; phone OTP ${escapeHtml(formatScoreComponent(record.phone_otp_score, 20))}; facial recognition ${escapeHtml(formatScoreComponent(record.face_recognition_score, 40))}.</p>
+    `;
+}
+
+function getOptionalSellerContextMarkup(record) {
+    return `
+        ${record?.business_name ? `<p>Business name: ${escapeHtml(record.business_name)}</p>` : ""}
+        ${record?.seller_social_handle ? `<p>Social handle: ${escapeHtml(record.seller_social_handle)}</p>` : ""}
+        ${record?.marketplace_profile_link ? `<p>Marketplace profile: ${escapeHtml(record.marketplace_profile_link)}</p>` : ""}
+        ${record?.seller_notes ? `<p>Seller notes: ${escapeHtml(record.seller_notes)}</p>` : ""}
+    `;
+}
+
 function formatPercent(value) {
     const numericValue = Number(value);
     return Number.isFinite(numericValue) ? `${clampPercent(numericValue)}%` : EMPTY_LABEL;
@@ -383,11 +418,12 @@ function getDistinctSellerCount(checksList) {
 
     checksList.forEach((check) => {
         const key =
-            check.seller_profile_id ||
-            check.seller_username_input ||
-            check.seller_email ||
-            check.seller_phone ||
-            check.marketplace_profile_link;
+            (check.seller_profile_id && `seller:${check.seller_profile_id}`) ||
+            (check.seller_user_id && `seller:${check.seller_user_id}`) ||
+            (normalizeText(check.seller_username_input) && `username:${normalizeText(check.seller_username_input)}`) ||
+            (normalizeText(check.seller_email) && `email:${normalizeText(check.seller_email)}`) ||
+            (normalizePhone(check.seller_phone) && `phone:${normalizePhone(check.seller_phone)}`) ||
+            (normalizeUrl(check.marketplace_profile_link) && `marketplace:${normalizeUrl(check.marketplace_profile_link)}`);
 
         if (key) {
             sellerKeys.add(key);
@@ -402,7 +438,11 @@ function getOtpSuccessRate(checksList, profile = null) {
         return profile?.otp_alerts === true ? 100 : null;
     }
 
-    const successfulChecks = checksList.filter((check) => check.otp_confirmed).length;
+    const successfulChecks = checksList.filter(
+        (check) =>
+            check.otp_confirmed ||
+            (Number(check.email_otp_score) >= 20 && Number(check.phone_otp_score) >= 20)
+    ).length;
     return clampPercent((successfulChecks / checksList.length) * 100);
 }
 
@@ -744,7 +784,9 @@ function renderPurchaseList(purchases) {
                     <p>Seller name: ${escapeHtml(purchase.seller_name || EMPTY_LABEL)}</p>
                     <p>Seller email: ${escapeHtml(purchase.seller_email || EMPTY_LABEL)}</p>
                     <p>Seller phone: ${escapeHtml(purchase.seller_phone || EMPTY_LABEL)}</p>
+                    ${getOptionalSellerContextMarkup(purchase)}
                     <p>Safety score: ${escapeHtml(formatSafetyScore(purchase.safety_score))}</p>
+                    ${getSafetyScoreBreakdownMarkup(purchase)}
                     <p>Current status: ${escapeHtml(formatPurchaseStatusLabel(purchase.purchase_status))}</p>
                     ${
                         purchase.fraud_reported
@@ -1211,10 +1253,11 @@ async function upsertAnalyticsSnapshot(userId, snapshot) {
 }
 
 async function collectUserSnapshot(userId, profileOverride = null) {
-    const [profile, sellerProfile, checksResponse, historyResponse] = await Promise.all([
+    const [profile, sellerProfile, checksResponse, purchases, historyResponse] = await Promise.all([
         profileOverride ? Promise.resolve(profileOverride) : fetchCurrentProfile(userId),
         fetchSellerProfile(userId),
         supabaseClient.from("verification_checks").select("*").eq("user_id", userId),
+        fetchPurchases(userId),
         supabaseClient
             .from("user_history")
             .select("*")
@@ -1236,10 +1279,10 @@ async function collectUserSnapshot(userId, profileOverride = null) {
         });
 
     const snapshot = {
-        trustChecksRun: checksList.length,
-        sellersMonitored: getDistinctSellerCount(checksList),
+        trustChecksRun: checksList.length + purchases.length,
+        sellersMonitored: getDistinctSellerCount([...checksList, ...purchases]),
         profileCompletion: getProfileCompletion(resolvedProfile, sellerProfile),
-        otpConfirmationSuccess: getOtpSuccessRate(checksList, resolvedProfile),
+        otpConfirmationSuccess: getOtpSuccessRate([...checksList, ...purchases], resolvedProfile),
         matchedSellerDetailRate: getAverageMatchRate(checksList),
         positiveFeedbackTrend: getPositiveFeedbackTrend(allHistory),
         historyRecords: allHistory.length
@@ -1249,6 +1292,7 @@ async function collectUserSnapshot(userId, profileOverride = null) {
         profile: resolvedProfile,
         sellerProfile,
         checksList,
+        purchases,
         historyList,
         snapshot
     };
@@ -1481,8 +1525,9 @@ function bindPurchaseActions(userId) {
             description: `Seller record for ${data.seller_name || data.product_name || "this seller"} was updated to ${formatPurchaseStatusLabel(data.purchase_status).toLowerCase()}.`
         });
 
-        const purchases = await fetchPurchases(userId);
+        const { purchases, snapshot } = await collectUserSnapshot(userId);
 
+        await upsertAnalyticsSnapshot(userId, snapshot);
         renderPurchaseList(purchases);
         renderUserPurchaseAnalytics(purchases);
     });
@@ -2215,6 +2260,62 @@ function renderAdminTable(users, emptyMessage = "No users matched the current se
         .join("");
 }
 
+function getAdminSellerAssessments(userRecord) {
+    if (Array.isArray(userRecord?.seller_assessments)) {
+        return userRecord.seller_assessments;
+    }
+
+    if (typeof userRecord?.seller_assessments === "string") {
+        try {
+            const parsedAssessments = JSON.parse(userRecord.seller_assessments);
+            return Array.isArray(parsedAssessments) ? parsedAssessments : [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    return [];
+}
+
+function renderAdminSellerAssessments(userRecord) {
+    const assessmentList = document.getElementById("admin-modal-seller-assessments");
+
+    if (!assessmentList) {
+        return;
+    }
+
+    const assessments = getAdminSellerAssessments(userRecord);
+
+    if (!assessments.length) {
+        assessmentList.innerHTML = `
+            <article class="history-item empty-state">
+                <h4>${EMPTY_LABEL}</h4>
+                <p>This user has no saved seller assessments yet.</p>
+            </article>
+        `;
+        return;
+    }
+
+    assessmentList.innerHTML = assessments
+        .map(
+            (assessment) => `
+                <article class="history-item">
+                    <p class="history-date">${escapeHtml(formatDate(assessment.created_at))}</p>
+                    <h4>${escapeHtml(assessment.seller_name || "Seller assessment")}</h4>
+                    <p>Seller type: ${escapeHtml(assessment.seller_type || EMPTY_LABEL)}</p>
+                    <p>Seller email: ${escapeHtml(assessment.seller_email || EMPTY_LABEL)}</p>
+                    <p>Seller phone: ${escapeHtml(assessment.seller_phone || EMPTY_LABEL)}</p>
+                    ${getOptionalSellerContextMarkup(assessment)}
+                    <p>Safety score: ${escapeHtml(formatSafetyScore(assessment.safety_score))}</p>
+                    ${getSafetyScoreBreakdownMarkup(assessment)}
+                    <p>Current status: ${escapeHtml(formatPurchaseStatusLabel(assessment.purchase_status))}</p>
+                    ${assessment.fraud_reported ? '<p><strong class="result-pill high-pill">Fraud Reported</strong></p>' : ""}
+                </article>
+            `
+        )
+        .join("");
+}
+
 function populateAdminUserModal(userRecord) {
     setTextContent("admin-modal-name", userRecord?.full_name || EMPTY_LABEL);
     setTextContent("admin-modal-email", userRecord?.email || EMPTY_LABEL);
@@ -2225,6 +2326,8 @@ function populateAdminUserModal(userRecord) {
     setTextContent("admin-modal-buyer-trust", formatPercent(userRecord?.buyer_trust_score));
     setTextContent("admin-modal-seller-trust", formatPercent(userRecord?.seller_trust_score));
     setTextContent("admin-modal-purchase-confidence", formatPercent(userRecord?.purchase_confidence_score));
+    setTextContent("admin-modal-trust-checks", String(getAdminCountValue(userRecord?.trust_checks_run)));
+    setTextContent("admin-modal-sellers-monitored", String(getAdminCountValue(userRecord?.sellers_monitored)));
     setTextContent("admin-modal-average-safety", formatSafetyScore(userRecord?.average_safety_score));
     setTextContent("admin-modal-total-purchases", String(getAdminCountValue(userRecord?.total_purchase_records)));
     setTextContent(
@@ -2233,6 +2336,7 @@ function populateAdminUserModal(userRecord) {
     );
     setTextContent("admin-modal-follow-through-rate", formatPercent(userRecord?.follow_through_percent));
     setTextContent("admin-modal-created-at", formatDate(userRecord?.created_at));
+    renderAdminSellerAssessments(userRecord);
 }
 
 function renderAdminSummary(allUsers) {
@@ -2990,9 +3094,11 @@ function createBuyerImageController(onStateChange) {
 }
 
 async function initUserPage(session, initialProfile) {
-    const { profile, sellerProfile, historyList, snapshot } = await collectUserSnapshot(session.user.id, initialProfile);
+    const { profile, sellerProfile, purchases, historyList, snapshot } = await collectUserSnapshot(
+        session.user.id,
+        initialProfile
+    );
     const displayProfile = getDisplayProfile(profile, session.user);
-    const purchases = await fetchPurchases(session.user.id);
 
     await upsertAnalyticsSnapshot(session.user.id, snapshot);
 
@@ -4160,6 +4266,10 @@ async function initBuyerPage(session) {
         const sellerPhoneOtpInput = document.getElementById("seller-phone-otp");
         const sellerPhoneOtpSendButton = document.getElementById("seller-phone-otp-send");
         const sellerIdNumberInput = document.getElementById("purchase-seller-id-number");
+        const sellerSocialHandleInput = document.getElementById("purchase-seller-social-handle");
+        const marketplaceProfileInput = document.getElementById("purchase-marketplace-profile");
+        const businessNameInput = document.getElementById("purchase-business-name");
+        const sellerNotesInput = document.getElementById("purchase-seller-notes");
         const selfieActivateButton = document.getElementById("buyer-selfie-activate-btn");
         const idActivateButton = document.getElementById("buyer-id-photo-activate-btn");
         const verifyIdentityButton = document.getElementById("buyer-verify-identity-btn");
@@ -4171,6 +4281,10 @@ async function initBuyerPage(session) {
         const verificationBreakdownScore = document.getElementById("buyer-verification-breakdown-score");
         const verificationTotalScore = document.getElementById("buyer-verification-total-score");
         const verificationStatusText = document.getElementById("buyer-verification-status-text");
+        const verificationDetailsScore = document.getElementById("buyer-verification-details-score");
+        const verificationEmailOtpScore = document.getElementById("buyer-verification-email-otp-score");
+        const verificationPhoneOtpScore = document.getElementById("buyer-verification-phone-otp-score");
+        const verificationFaceScore = document.getElementById("buyer-verification-face-score");
         const verificationProgressText = document.getElementById("buyer-verification-progress-text");
         const verificationLoadingText = document.getElementById("buyer-verification-loading-text");
         const verificationScoreFill = document.getElementById("buyer-verification-score-fill");
@@ -4231,6 +4345,7 @@ async function initBuyerPage(session) {
             } finally {
                 buyerEmailOtpState.sendInFlight = false;
                 sellerEmailOtpSendButton.disabled = false;
+                renderBuyerVerificationState();
             }
         }
 
@@ -4308,6 +4423,7 @@ async function initBuyerPage(session) {
 
                 buyerEmailOtpState.verified = true;
                 setInlineStatus("seller-email-otp-status", "Email OTP verified.", "success");
+                renderBuyerVerificationState();
                 return true;
             } catch (error) {
                 buyerEmailOtpState.verified = false;
@@ -4315,6 +4431,7 @@ async function initBuyerPage(session) {
                 return false;
             } finally {
                 buyerEmailOtpState.verifyInFlight = false;
+                renderBuyerVerificationState();
             }
         }
 
@@ -4333,6 +4450,7 @@ async function initBuyerPage(session) {
             sellerPhoneOtpSendButton.textContent = "Resend OTP";
             setInlineStatus("seller-phone-otp-status", "OTP sent to the seller phone number. Enter the 6-digit code to verify it.", "success");
             showAlert(`Demo phone OTP: ${buyerPhoneOtpState.code}`);
+            renderBuyerVerificationState();
         }
 
         function validateBuyerPhoneOtp(showErrors = false) {
@@ -4403,11 +4521,45 @@ async function initBuyerPage(session) {
             verificationStatusPill.textContent = "Not verified";
         }
 
+        function calculateBuyerSafetyScore(verificationResult = verificationState.result) {
+            const detailsComplete = [
+                sellerNameInput.value.trim(),
+                sellerEmailInput.value.trim(),
+                sellerPhoneInput.value.trim(),
+                sellerIdNumberInput.value.trim()
+            ].every(Boolean);
+            const emailOtpVerified = isOtpVerifiedForValue(
+                buyerEmailOtpState,
+                sellerEmailInput.value.trim().toLowerCase(),
+                "email"
+            );
+            const phoneOtpVerified = isOtpVerifiedForValue(
+                buyerPhoneOtpState,
+                sellerPhoneInput.value.trim(),
+                "phone"
+            );
+            const rawFaceScore = Number(verificationResult?.id_selfie_score);
+            const faceScore = Number.isFinite(rawFaceScore) ? Math.max(0, Math.min(40, rawFaceScore)) : 0;
+            const detailsScore = detailsComplete ? 20 : 0;
+            const emailOtpScore = emailOtpVerified ? 20 : 0;
+            const phoneOtpScore = phoneOtpVerified ? 20 : 0;
+
+            return {
+                detailsScore,
+                emailOtpScore,
+                phoneOtpScore,
+                faceScore,
+                totalScore: Number((detailsScore + emailOtpScore + phoneOtpScore + faceScore).toFixed(1))
+            };
+        }
+
         function renderBuyerVerificationState() {
             const hasIdPhoto = Boolean(imageController.getFile("id-photo"));
             const hasSelfiePhoto = Boolean(imageController.getFile("selfie"));
             const verificationResult = verificationState.result;
             const hasVerification = Boolean(verificationResult);
+            const safetyScore = calculateBuyerSafetyScore(verificationResult);
+            const safetyStatus = safetyScore.totalScore >= 75 ? "Verified" : "Needs Review";
 
             if (verificationIdState) {
                 verificationIdState.textContent = hasIdPhoto ? "ID Uploaded: complete" : "ID upload pending";
@@ -4432,23 +4584,33 @@ async function initBuyerPage(session) {
             }
 
             if (verificationTotalScore) {
-                verificationTotalScore.textContent = hasVerification
-                    ? `${verificationResult.total_score.toFixed(1)} / 100`
-                    : "0 / 100";
+                verificationTotalScore.textContent = `${safetyScore.totalScore.toFixed(1)} / 100`;
             }
 
             if (verificationStatusText) {
                 verificationStatusText.textContent = hasVerification
-                    ? verificationResult.status === "verified"
-                        ? "Status: Verified"
-                        : "Status: Needs Review"
-                    : "Upload both images and run the check.";
+                    ? `Status: ${safetyStatus}`
+                    : "Complete the seller details, verify both OTPs, and run the identity check.";
+            }
+
+            if (verificationDetailsScore) {
+                verificationDetailsScore.textContent = `Required seller details: ${safetyScore.detailsScore} / 20`;
+            }
+
+            if (verificationEmailOtpScore) {
+                verificationEmailOtpScore.textContent = `Email OTP verification: ${safetyScore.emailOtpScore} / 20`;
+            }
+
+            if (verificationPhoneOtpScore) {
+                verificationPhoneOtpScore.textContent = `Phone OTP verification: ${safetyScore.phoneOtpScore} / 20`;
+            }
+
+            if (verificationFaceScore) {
+                verificationFaceScore.textContent = `Facial recognition: ${safetyScore.faceScore.toFixed(1)} / 40`;
             }
 
             if (verificationScoreFill) {
-                verificationScoreFill.style.width = hasVerification
-                    ? `${Math.max(0, Math.min(100, verificationResult.total_score))}%`
-                    : "0%";
+                verificationScoreFill.style.width = `${safetyScore.totalScore}%`;
             }
 
             if (verificationProgressText && !verificationState.isLoading) {
@@ -4544,6 +4706,7 @@ async function initBuyerPage(session) {
         [sellerNameInput, sellerEmailInput, sellerPhoneInput, sellerIdNumberInput].forEach((input) => {
             input?.addEventListener("input", () => {
                 setStatusMessage("buyer-purchase-status", "", "");
+                renderBuyerVerificationState();
             });
         });
 
@@ -4557,6 +4720,7 @@ async function initBuyerPage(session) {
                 sellerEmailOtpInput.value = "";
             }
             setInlineStatus("seller-email-otp-status", "Email address changed. Send a new OTP to verify it.");
+            renderBuyerVerificationState();
         });
 
         sellerEmailOtpSendButton?.addEventListener("click", () => {
@@ -4568,10 +4732,12 @@ async function initBuyerPage(session) {
 
         sellerEmailOtpInput?.addEventListener("input", () => {
             validateBuyerEmailOtp();
+            renderBuyerVerificationState();
             if (normalizeOtpValue(sellerEmailOtpInput.value).length === OTP_LENGTH) {
                 verifyBuyerEmailOtp().catch((error) => {
                     buyerEmailOtpState.verifyInFlight = false;
                     setInlineStatus("seller-email-otp-status", getOtpVerifyErrorMessage(error, "email"), "error");
+                    renderBuyerVerificationState();
                 });
             }
         });
@@ -4584,6 +4750,7 @@ async function initBuyerPage(session) {
                 sellerPhoneOtpInput.value = "";
             }
             setInlineStatus("seller-phone-otp-status", "Phone number changed. Send a new OTP to verify it.");
+            renderBuyerVerificationState();
         });
 
         sellerPhoneOtpSendButton?.addEventListener("click", sendBuyerPhoneOtp);
@@ -4592,6 +4759,7 @@ async function initBuyerPage(session) {
             if (normalizeOtpValue(sellerPhoneOtpInput.value).length === OTP_LENGTH) {
                 validateBuyerPhoneOtp(true);
             }
+            renderBuyerVerificationState();
         });
 
         if (selfieActivateButton) {
@@ -4633,6 +4801,10 @@ async function initBuyerPage(session) {
             const sellerEmail = sellerEmailInput.value.trim().toLowerCase();
             const sellerPhone = sellerPhoneInput.value.trim();
             const sellerIdNumber = sellerIdNumberInput.value.trim();
+            const sellerSocialHandle = sellerSocialHandleInput.value.trim();
+            const marketplaceProfileLink = marketplaceProfileInput.value.trim();
+            const businessName = businessNameInput.value.trim();
+            const sellerNotes = sellerNotesInput.value.trim();
             const selfieFile = imageController.getFile("selfie");
             const idPhotoFile = imageController.getFile("id-photo");
             const requiredFieldsComplete = [sellerName, sellerEmail, sellerPhone, sellerIdNumber].every(Boolean);
@@ -4643,6 +4815,20 @@ async function initBuyerPage(session) {
                     "Complete the seller name, email, phone number, ID number, and both cropped images before saving this seller record.",
                     "error"
                 );
+                return;
+            }
+
+            const emailOtpReady = validateBuyerEmailOtp(true);
+            const phoneOtpReady = validateBuyerPhoneOtp(true);
+            const otpReady = emailOtpReady && phoneOtpReady;
+
+            if (!otpReady) {
+                setStatusMessage(
+                    "buyer-purchase-status",
+                    "Verify both seller OTPs before saving this seller record.",
+                    "error"
+                );
+                renderBuyerVerificationState();
                 return;
             }
 
@@ -4670,7 +4856,8 @@ async function initBuyerPage(session) {
 
             const registeredSeller = await findRegisteredSellerByContact(sellerEmail, sellerPhone);
             const riskWarning = await hasSellerRiskWarning(sellerEmail, sellerPhone);
-            const safetyScore = Number(verificationResult.total_score.toFixed(1));
+            const safetyBreakdown = calculateBuyerSafetyScore(verificationResult);
+            const safetyScore = safetyBreakdown.totalScore;
 
             // Save only the privacy-safe seller summary fields and purchase workflow metadata.
             const purchasePayload = {
@@ -4680,7 +4867,15 @@ async function initBuyerPage(session) {
                 seller_name: sellerName,
                 seller_email: sellerEmail,
                 seller_phone: sellerPhone,
+                seller_social_handle: sellerSocialHandle || null,
+                marketplace_profile_link: marketplaceProfileLink || null,
+                business_name: businessName || null,
+                seller_notes: sellerNotes || null,
                 safety_score: safetyScore,
+                details_score: safetyBreakdown.detailsScore,
+                email_otp_score: safetyBreakdown.emailOtpScore,
+                phone_otp_score: safetyBreakdown.phoneOtpScore,
+                face_recognition_score: safetyBreakdown.faceScore,
                 purchase_status: "pending",
                 fraud_reported: false,
                 fraud_reason: null
@@ -4704,6 +4899,9 @@ async function initBuyerPage(session) {
                 description: `Seller record saved for ${sellerName}. Safety score: ${formatSafetyScore(safetyScore)}.`
             });
 
+            const { snapshot } = await collectUserSnapshot(session.user.id);
+            await upsertAnalyticsSnapshot(session.user.id, snapshot);
+
             setStatusMessage(
                 "buyer-purchase-status",
                 riskWarning
@@ -4717,6 +4915,10 @@ async function initBuyerPage(session) {
             purchaseForm.reset();
             imageController.clearAll();
             clearBuyerVerification("Upload both images, then click Verify Identity.");
+
+            window.setTimeout(() => {
+                window.location.href = getUserPageUrl(session.user);
+            }, 1800);
         });
     }
 }
