@@ -1027,20 +1027,44 @@ async function searchSystemUsers(searchTerm) {
         return [];
     }
 
-    const escapedSearchTerm = trimmedSearchTerm.replaceAll(",", "\\,");
-    const { data, error } = await supabaseClient
-        .from("profiles")
-        .select("id, full_name, auth_email, phone_number")
-        .or(
-            `full_name.ilike.%${escapedSearchTerm}%,auth_email.ilike.%${escapedSearchTerm}%,phone_number.ilike.%${escapedSearchTerm}%`
-        )
-        .limit(8);
+    const { data: rpcData, error: rpcError } = await supabaseClient.rpc("search_profiles", {
+        p_search: trimmedSearchTerm
+    });
 
-    if (error || !Array.isArray(data)) {
-        return [];
+    if (!rpcError && Array.isArray(rpcData)) {
+        return rpcData;
     }
 
-    return data;
+    const searchPattern = `%${trimmedSearchTerm}%`;
+    const normalizedPhoneSearch = normalizePhone(trimmedSearchTerm);
+    const profileColumns = "id, username, full_name, auth_email, phone_number";
+    const queries = [
+        supabaseClient.from("profiles").select(profileColumns).ilike("full_name", searchPattern).limit(8),
+        supabaseClient.from("profiles").select(profileColumns).ilike("username", searchPattern).limit(8),
+        supabaseClient.from("profiles").select(profileColumns).ilike("auth_email", searchPattern).limit(8)
+    ];
+
+    if (normalizedPhoneSearch) {
+        queries.push(
+            supabaseClient.from("profiles").select(profileColumns).ilike("phone_number", `%${normalizedPhoneSearch}%`).limit(8)
+        );
+    }
+
+    const responses = await Promise.all(queries);
+    const successfulResponses = responses.filter((response) => !response.error && Array.isArray(response.data));
+
+    if (!successfulResponses.length) {
+        throw rpcError || responses.find((response) => response.error)?.error || new Error("Profile search failed.");
+    }
+
+    const profilesById = new Map();
+    successfulResponses.forEach((response) => {
+        response.data.forEach((profile) => {
+            profilesById.set(profile.id, profile);
+        });
+    });
+
+    return [...profilesById.values()].slice(0, 8);
 }
 
 async function fetchAdminDashboardUsers() {
