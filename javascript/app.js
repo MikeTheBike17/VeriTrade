@@ -85,10 +85,6 @@ function formatPurchaseStatusLabel(status) {
         return "Product received";
     }
 
-    if (status === "not_delivered") {
-        return "Product not received";
-    }
-
     if (status === "fraud_reported") {
         return "Fraud reported";
     }
