@@ -281,7 +281,6 @@ function writeLoginAliasMap(loginAliasMap) {
     try {
         window.localStorage.setItem(LOGIN_ALIAS_STORAGE_KEY, JSON.stringify(loginAliasMap));
     } catch (error) {
-        // Ignore storage quota or browser privacy mode failures.
     }
 }
 
@@ -1009,7 +1008,6 @@ async function persistSellerIdentityVerification(userId, verificationResult) {
             }
         );
     } catch (error) {
-        // Demo storage is optional and should not block the seller flow.
     }
 }
 
@@ -1134,7 +1132,6 @@ async function requestDemoIdentityVerification(session, payload) {
                 return normalizedResult;
             }
         } catch (error) {
-            // Fall back to a local demo result when the edge function is unavailable.
         }
     }
 
@@ -4717,7 +4714,6 @@ async function initBuyerPage(session) {
 
             await delay(900);
 
-            // Reuse the seller page demo verification flow for the buyer-side seller assessment.
             const demoVerificationResult = await requestDemoIdentityVerification(session, {
                 selfieFile,
                 idPhotoFile
